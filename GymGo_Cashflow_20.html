@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GYM&GO — Cashflow Dashboard</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8f7f4;color:#1a1a18;min-height:100vh;padding:1.5rem}
+.container{max-width:1100px;margin:0 auto}
+.hdr{padding:1.25rem 0 1rem;border-bottom:1px solid rgba(0,0,0,0.1);margin-bottom:1.2rem;display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.hdr-title{font-size:22px;font-weight:600;color:#1a1a18}
+.hdr-sub{font-size:13px;color:#888}
+.cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:1.2rem}
+@media(max-width:600px){.cards{grid-template-columns:repeat(2,1fr)}}
+.card{background:#fff;border-radius:10px;padding:.9rem 1rem;border:1px solid rgba(0,0,0,0.07)}
+.card-lbl{font-size:11px;color:#888;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
+.card-val{font-size:20px;font-weight:600;color:#1a1a18}
+.card-val.green{color:#1D9E75}
+.card-val.red{color:#E24B4A}
+.card-val.orange{color:#BA7517}
+.card-val.blue{color:#185FA5}
+.filters{display:flex;gap:6px;margin-bottom:.75rem;flex-wrap:wrap;align-items:center}
+.filter-btn{background:#fff;border:1px solid rgba(0,0,0,0.12);border-radius:8px;padding:5px 12px;font-size:12px;cursor:pointer;color:#444;transition:all .15s}
+.filter-btn.active{background:#1a1a18;color:#fff;border-color:#1a1a18}
+.filter-btn:hover:not(.active){background:#f0eeea}
+.search-wrap{margin-left:auto}
+.search-wrap input{font-size:13px;padding:6px 11px;border-radius:8px;border:1px solid rgba(0,0,0,0.12);background:#fff;color:#1a1a18;width:170px;outline:none}
+.search-wrap input:focus{border-color:#378ADD}
+.month-tabs{display:flex;gap:6px;margin-bottom:.75rem;flex-wrap:wrap}
+.month-tab{background:#fff;border:1px solid rgba(0,0,0,0.1);border-radius:8px;padding:4px 13px;font-size:12px;cursor:pointer;color:#666}
+.month-tab.active{background:#1a1a18;color:#fff;border-color:#1a1a18}
+.tbl-wrap{overflow-x:auto;border:1px solid rgba(0,0,0,0.08);border-radius:12px;margin-bottom:1.2rem;background:#fff}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead tr{border-bottom:1px solid rgba(0,0,0,0.08)}
+th{padding:.65rem .85rem;color:#888;font-weight:500;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+th.num{text-align:right}
+td{padding:.55rem .85rem;border-bottom:1px solid rgba(0,0,0,0.05);vertical-align:middle}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#fafaf8}
+.badge{display:inline-block;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:500}
+.badge-in{background:#EAF3DE;color:#3B6D11}
+.badge-out{background:#FCEBEB;color:#A32D2D}
+.badge-inj{background:#E1F5EE;color:#0F6E56}
+.sala-badge{display:inline-block;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:500}
+.s1{background:#E6F1FB;color:#185FA5}
+.s2{background:#FAEEDA;color:#854F0B}
+.sc{background:#F1EFE8;color:#5F5E5A}
+.warn-bar{background:#FAEEDA;border:1px solid #EF9F27;border-radius:10px;padding:.7rem 1rem;font-size:13px;color:#633806;margin-bottom:.9rem;display:none;align-items:center;gap:8px}
+.chart-wrap{background:#fff;border:1px solid rgba(0,0,0,0.08);border-radius:12px;padding:1.1rem;margin-bottom:1.2rem}
+.chart-lbl{font-size:11px;color:#888;margin-bottom:.6rem;text-transform:uppercase;letter-spacing:.04em}
+.chart-legend{display:flex;gap:16px;font-size:12px;color:#666;margin-bottom:.5rem}
+.chart-legend span{display:flex;align-items:center;gap:5px}
+.leg-dot{width:10px;height:10px;border-radius:2px;display:inline-block}
+.add-section{background:#fff;border-radius:12px;padding:1.1rem 1.25rem;margin-bottom:1.2rem;border:1px solid rgba(0,0,0,0.08)}
+.add-title{font-size:14px;font-weight:600;margin-bottom:.85rem;color:#1a1a18}
+.add-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;align-items:end}
+.add-grid label{font-size:11px;color:#888;display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.03em}
+.add-grid input,.add-grid select{font-size:13px;width:100%;padding:7px 9px;border:1px solid rgba(0,0,0,0.12);border-radius:8px;background:#fff;color:#1a1a18;outline:none}
+.add-grid input:focus,.add-grid select:focus{border-color:#378ADD}
+.add-btn{background:#1a1a18;border:none;border-radius:8px;padding:8px 18px;font-size:13px;cursor:pointer;color:#fff;font-weight:500;transition:opacity .15s}
+.add-btn:hover{opacity:.85}
+.del-btn{background:none;border:none;cursor:pointer;color:#ccc;font-size:15px;padding:2px 6px;border-radius:5px;transition:color .15s}
+.del-btn:hover{color:#E24B4A}
+.export-btn{background:#fff;border:1px solid rgba(0,0,0,0.12);border-radius:8px;padding:5px 13px;font-size:12px;cursor:pointer;color:#444;transition:all .15s}
+.export-btn:hover{background:#f0eeea}
+.empty-row{text-align:center;color:#aaa;padding:1.5rem!important}
+th.sold-col{background:#FFF9C4!important;color:#1a1a18!important}
+td.sold-col{background:#FFF9C4!important;color:#1a1a18!important}
+tr.incasare-row td{background:#F0FAF0!important}
+tr.incasare-row td.sold-col{background:#d6f0d6!important}
+tr.incasare-row:hover td{background:#e0f5e0!important}
+tr.incasare-row:hover td.sold-col{background:#c8ebc8!important}
+tr.cheltuiala-row td{background:#FFF0F0!important}
+tr.cheltuiala-row td.sold-col{background:#ffd6d6!important}
+tr.cheltuiala-row:hover td{background:#ffe0e0!important}
+tr.cheltuiala-row:hover td.sold-col{background:#ffc8c8!important}
+tr.today-row td.sold-col{background:#f0e96a!important}
+tr.today-row td{background:#EAF3DE!important;border-left:3px solid #1D9E75}
+tr.today-row:hover td{background:#d8edc7!important}
+tr.today-row td:first-child{position:relative}
+.today-label{font-size:10px;background:#1D9E75;color:#fff;border-radius:3px;padding:1px 5px;margin-left:5px;vertical-align:middle;font-weight:600}
+@keyframes pulse-today{0%,100%{box-shadow:0 0 0 0 rgba(29,158,117,0.5)}50%{box-shadow:0 0 0 6px rgba(29,158,117,0)}}
+tr.today-row{animation:pulse-today 2s ease-in-out 3}
+.edit-input{border:1.5px solid #378ADD;border-radius:5px;padding:3px 6px;font-size:13px;width:100px;font-family:inherit;background:#fff;color:#1a1a18;outline:none}
+.edit-input:focus{border-color:#185FA5;box-shadow:0 0 0 2px rgba(55,138,221,0.15)}
+.edit-btn{background:none;border:none;cursor:pointer;color:#bbb;font-size:14px;padding:2px 5px;border-radius:5px;transition:color .15s}
+.edit-btn:hover{color:#378ADD}
+.save-btn{background:#1D9E75;border:none;border-radius:5px;padding:3px 9px;font-size:12px;cursor:pointer;color:#fff;font-weight:500}
+.save-btn:hover{background:#0F6E56}
+.cancel-btn{background:none;border:1px solid #ccc;border-radius:5px;padding:3px 8px;font-size:12px;cursor:pointer;color:#666}
+.cancel-btn:hover{background:#f0eeea}
+.sold-override{color:#185FA5!important;font-style:italic}
+.sold-edit-input{border:1.5px solid #185FA5;border-radius:5px;padding:3px 6px;font-size:13px;width:110px;font-family:inherit;background:#fff;color:#185FA5;outline:none;font-weight:600;text-align:right}
+.sold-edit-input:focus{box-shadow:0 0 0 2px rgba(24,95,165,0.15)}
+.override-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#185FA5;margin-left:4px;vertical-align:middle;flex-shrink:0}
+.drag-handle{cursor:grab;color:#ccc;padding:2px 4px;font-size:16px;vertical-align:middle;user-select:none}
+.drag-handle:hover{color:#888}
+tr.dragging{opacity:0.4;background:#f0eeea!important}
+tr.drag-over td{border-top:2.5px solid #378ADD!important}
+.date-popup-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:1000;display:flex;align-items:center;justify-content:center}
+.date-popup{background:#fff;border-radius:14px;padding:1.5rem 1.75rem;min-width:280px;box-shadow:0 8px 32px rgba(0,0,0,0.18)}
+.date-popup h3{font-size:15px;font-weight:600;margin-bottom:.25rem;color:#1a1a18}
+.date-popup p{font-size:12px;color:#888;margin-bottom:1rem}
+.date-popup input[type=date]{width:100%;font-size:14px;padding:8px 10px;border:1.5px solid #ddd;border-radius:8px;margin-bottom:1rem;outline:none;color:#1a1a18}
+.date-popup input[type=date]:focus{border-color:#378ADD}
+.date-popup-btns{display:flex;gap:8px;justify-content:flex-end}
+.date-popup-btns button{padding:7px 18px;border-radius:8px;font-size:13px;cursor:pointer;font-weight:500}
+.btn-confirm{background:#1a1a18;color:#fff;border:none}
+.btn-confirm:hover{opacity:.85}
+.btn-cancel-popup{background:#fff;color:#666;border:1px solid #ddd}
+.btn-cancel-popup:hover{background:#f5f5f5}
+.mob-amount{display:none}
+.mob-badges{display:none}
+@media(max-width:700px){
+  .mob-amount{display:block!important}
+  .mob-badges{display:flex!important;gap:4px;margin-top:3px;flex-wrap:wrap}
+  .drag-handle{display:none!important}
+  thead th:nth-child(3),tbody td:nth-child(3),
+  thead th:nth-child(4),tbody td:nth-child(4),
+  thead th:nth-child(5),tbody td:nth-child(5),
+  thead th:nth-child(6),tbody td:nth-child(6),
+  thead th:nth-child(7),tbody td:nth-child(7){display:none!important}
+  th:first-child{width:38px!important}
+  td:first-child{padding:.45rem .35rem!important;font-size:11px!important}
+  td:nth-child(8){padding:.45rem .4rem!important}
+  td:nth-child(9){padding:.45rem .3rem!important;white-space:nowrap}
+  .search-wrap{margin-left:0!important;width:100%}
+  .search-wrap input{width:100%!important}
+  .hdr>div:last-child{gap:5px;flex-wrap:wrap}
+  .export-btn .btn-txt{display:none}
+  .cards{grid-template-columns:repeat(2,1fr)!important}
+  .add-grid{grid-template-columns:1fr 1fr}
+  .chart-wrap{padding:.75rem .5rem}
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<div class="hdr">
+  <div>
+    <div class="hdr-title">GYM&amp;GO — Cashflow</div>
+    <div class="hdr-sub">Sala 1 &amp; Sala 2 · Apr–Iul 2026 · Limită minimă: 9.500 RON</div>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button class="export-btn" onclick="scrollToToday()" id="btnToday" style="background:#EAF3DE;border-color:#1D9E75;color:#0F6E56;font-weight:600"><i class="ti ti-calendar-event"></i><span class="btn-txt"> Mergi la azi</span></button>
+    <button class="export-btn" onclick="undo()" id="btnUndo" style="opacity:.4;cursor:not-allowed" disabled title="Ctrl+Z"><i class="ti ti-arrow-back-up"></i><span class="btn-txt"> Undo</span></button>
+    <button class="export-btn" onclick="exportCSV()"><i class="ti ti-download"></i><span class="btn-txt"> Export CSV</span></button>
+    <button class="export-btn" onclick="window.print()"><i class="ti ti-printer"></i><span class="btn-txt"> Print / PDF</span></button>
+  </div>
+</div>
+
+<div class="warn-bar" id="warnBar"><i class="ti ti-alert-triangle"></i> <strong>Atenție:</strong> Soldul a scăzut sub limita minimă de 9.500 RON!</div>
+
+<div class="cards">
+  <div class="card"><div class="card-lbl">Sold curent</div><div class="card-val" id="soldCurent">—</div></div>
+  <div class="card"><div class="card-lbl">Total încasări</div><div class="card-val green" id="totalIn">—</div></div>
+  <div class="card"><div class="card-lbl">Total cheltuieli</div><div class="card-val red" id="totalOut">—</div></div>
+  <div class="card"><div class="card-lbl">Injecții acționar</div><div class="card-val orange" id="totalInj">—</div></div>
+</div>
+
+<div class="filters">
+  <span style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.04em">Sală:</span>
+  <button class="filter-btn active" onclick="setFilter('sala','all',this)">Toate</button>
+  <button class="filter-btn" onclick="setFilter('sala','Sala 1',this)">Sala 1</button>
+  <button class="filter-btn" onclick="setFilter('sala','Sala 2',this)">Sala 2</button>
+  <button class="filter-btn" onclick="setFilter('sala','Comun',this)">Comun</button>
+  <span style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.04em;margin-left:6px">Tip:</span>
+  <button class="filter-btn active" onclick="setFilter('tip','all',this)" data-group="tip">Toate</button>
+  <button class="filter-btn" onclick="setFilter('tip','Incasare',this)" data-group="tip">Încasări</button>
+  <button class="filter-btn" onclick="setFilter('tip','Cheltuiala',this)" data-group="tip">Cheltuieli</button>
+  <button class="filter-btn" onclick="setFilter('tip','Injectie',this)" data-group="tip">Injecții</button>
+  <div class="search-wrap"><input type="text" id="searchBox" placeholder="🔍 Caută descriere…" oninput="renderTable()"></div>
+</div>
+
+<div class="month-tabs">
+  <button class="month-tab active" onclick="setMonth('all',this)">Toate lunile</button>
+  <button class="month-tab" onclick="setMonth('04',this)">Aprilie</button>
+  <button class="month-tab" onclick="setMonth('05',this)">Mai</button>
+  <button class="month-tab" onclick="setMonth('06',this)">Iunie</button>
+  <button class="month-tab" onclick="setMonth('07',this)">Iulie</button>
+</div>
+
+<div class="add-section" style="margin-bottom:1.2rem">
+  <div class="add-title"><i class="ti ti-plus-circle"></i> Adaugă tranzacție</div>
+  <div class="add-grid">
+    <div><label>Data</label><input type="date" id="newData"></div>
+    <div><label>Descriere</label><input type="text" id="newDesc" placeholder="ex: Chirie"></div>
+    <div><label>Sală</label><select id="newSala"><option>Sala 1</option><option>Sala 2</option><option>Comun</option></select></div>
+    <div><label>Tip</label><select id="newTip">
+      <option value="Incasare">Încasare</option>
+      <option value="Cheltuiala">Cheltuială</option>
+      <option value="Injectie">Injecție acționar</option>
+    </select></div>
+    <div><label>Sumă (RON)</label><input type="number" id="newSuma" min="0" step="1" placeholder="0"></div>
+    <div style="display:flex;align-items:flex-end"><button class="add-btn" onclick="addRow()"><i class="ti ti-check"></i> Adaugă</button></div>
+  </div>
+</div>
+
+<div class="tbl-wrap">
+<table>
+<thead>
+<tr>
+  <th style="width:70px">Data</th>
+  <th>Descriere</th>
+  <th style="width:75px">Sală</th>
+  <th style="width:85px">Tip</th>
+  <th class="num" style="width:110px">Intrare</th>
+  <th class="num" style="width:110px">Ieșire</th>
+  <th class="num" style="width:110px">Injecție</th>
+  <th class="num sold-col" style="width:110px">Sold cumulat</th>
+  <th style="width:60px"></th>
+</tr>
+</thead>
+<tbody id="tblBody"></tbody>
+</table>
+</div>
+
+<div class="chart-wrap">
+  <div class="chart-lbl">Evoluție sold cumulat</div>
+  <div class="chart-legend">
+    <span><span class="leg-dot" style="background:#378ADD"></span>Sold (RON)</span>
+    <span><span class="leg-dot" style="background:#E24B4A;opacity:.6"></span>Limita 9.500 RON</span>
+  </div>
+  <div style="position:relative;width:100%;height:240px">
+    <canvas id="chartSold" role="img" aria-label="Grafic evoluție sold cumulat GYM&GO"></canvas>
+  </div>
+</div>
+
+<div style="font-size:11px;color:#bbb;text-align:center;padding-bottom:1rem">GYM&GO Cashflow Dashboard · Date salvate local în browser</div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const LIMITA=9500, SOLD_INITIAL=18350;
+const STORAGE_KEY='gymgo_rows_v2';
+const RTDB='https://gymgo-b752c-default-rtdb.europe-west1.firebasedatabase.app';
+let filterSala='all', filterTip='all', filterMonth='all';
+
+async function dbLoad(){
+  const res=await fetch(RTDB+'/cashflow.json');
+  if(!res.ok) throw new Error('load failed');
+  return await res.json();
+}
+async function dbSave(){
+  await fetch(RTDB+'/cashflow.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(rows.map(r=>({data:r.data,desc:r.desc,sala:r.sala,tip:r.tip,val:r.val,soldOverride:r.soldOverride??null})))});
+}
+
+const defaultRows=[
+  {data:'2026-04-23',desc:'PAL Oglinzi',sala:'Sala 2',tip:'Cheltuiala',val:813},
+  {data:'2026-04-23',desc:'Sistem Oglinzi Feroshop',sala:'Sala 2',tip:'Cheltuiala',val:292},
+  {data:'2026-04-24',desc:'Oglinzi Sala 2',sala:'Sala 2',tip:'Cheltuiala',val:3082},
+  {data:'2026-04-25',desc:'Diana',sala:'Sala 1',tip:'Incasare',val:359},
+  {data:'2026-04-25',desc:'Bianca',sala:'Sala 1',tip:'Incasare',val:399},
+  {data:'2026-04-26',desc:'Mihnea',sala:'Sala 1',tip:'Incasare',val:399},
+  {data:'2026-04-26',desc:'Vopsea',sala:'Sala 2',tip:'Cheltuiala',val:1029},
+  {data:'2026-04-27',desc:'Ilinca 2',sala:'Sala 1',tip:'Incasare',val:559},
+  {data:'2026-04-27',desc:'Andreea',sala:'Sala 1',tip:'Incasare',val:599},
+  {data:'2026-04-27',desc:'Lumini Sala',sala:'Sala 2',tip:'Cheltuiala',val:1540},
+  {data:'2026-04-28',desc:'Ilinca',sala:'Sala 1',tip:'Incasare',val:379},
+  {data:'2026-04-28',desc:'Intrerupatoare Smart',sala:'Sala 2',tip:'Cheltuiala',val:372},
+  {data:'2026-04-28',desc:'Releu',sala:'Sala 2',tip:'Cheltuiala',val:168},
+  {data:'2026-04-29',desc:'COMISION',sala:'Sala 1',tip:'Incasare',val:1370},
+  {data:'2026-04-30',desc:'Cela',sala:'Sala 1',tip:'Incasare',val:499},
+  {data:'2026-04-30',desc:'Lusiana',sala:'Sala 1',tip:'Incasare',val:379},
+  {data:'2026-04-30',desc:'Marketing',sala:'Sala 1',tip:'Cheltuiala',val:698},
+  {data:'2026-05-04',desc:'Ecran Pilates',sala:'Sala 2',tip:'Cheltuiala',val:3657},
+  {data:'2026-05-04',desc:'Pita',sala:'Sala 1',tip:'Incasare',val:999},
+  {data:'2026-05-05',desc:'Sistem Geamuri',sala:'Sala 2',tip:'Cheltuiala',val:1542},
+  {data:'2026-05-05',desc:'Roxana Parascan',sala:'Sala 1',tip:'Incasare',val:450},
+  {data:'2026-05-05',desc:'EMA',sala:'Sala 1',tip:'Incasare',val:500},
+  {data:'2026-05-06',desc:'Specimen semnatura',sala:'Sala 2',tip:'Cheltuiala',val:320},
+  {data:'2026-05-07',desc:'Mihnea Rest',sala:'Sala 1',tip:'Incasare',val:300},
+  {data:'2026-05-07',desc:'DEDEMAN',sala:'Sala 2',tip:'Cheltuiala',val:979,soldOverride:11769},
+  {data:'2026-05-07',desc:'Carrefour',sala:'Sala 2',tip:'Cheltuiala',val:68.92},
+  {data:'2026-05-08',desc:'Sistem Digital Intrare',sala:'Sala 2',tip:'Cheltuiala',val:2005},
+  {data:'2026-05-09',desc:'Virginia',sala:'Sala 1',tip:'Incasare',val:399},
+  {data:'2026-05-10',desc:'dedeman',sala:'Sala 2',tip:'Cheltuiala',val:86,soldOverride:10291},
+  {data:'2026-05-11',desc:'Utilitati S1',sala:'Sala 1',tip:'Cheltuiala',val:225},
+  {data:'2026-05-11',desc:'PERDELE',sala:'Sala 2',tip:'Cheltuiala',val:152},
+  {data:'2026-05-11',desc:'Sezut Pilates',sala:'Sala 2',tip:'Cheltuiala',val:180,soldOverride:9731},
+  {data:'2026-05-11',desc:'PAL Pereti',sala:'Sala 2',tip:'Cheltuiala',val:3030,soldOverride:6665},
+  {data:'2026-05-12',desc:'Aparat Parfum',sala:'Sala 2',tip:'Cheltuiala',val:500},
+  {data:'2026-05-14',desc:'Banda Alergat',sala:'Sala 2',tip:'Cheltuiala',val:2040},
+  {data:'2026-05-14',desc:'Sezut Intrare',sala:'Sala 2',tip:'Cheltuiala',val:385},
+  {data:'2026-05-14',desc:'Plante',sala:'Sala 2',tip:'Cheltuiala',val:435},
+  {data:'2026-05-14',desc:'Covoare Aparat',sala:'Sala 2',tip:'Cheltuiala',val:510},
+  {data:'2026-05-14',desc:'Cos Gunoi + Cuier',sala:'Sala 2',tip:'Cheltuiala',val:204},
+  {data:'2026-05-14',desc:'RAFT POLITE',sala:'Sala 2',tip:'Cheltuiala',val:130},
+  {data:'2026-05-14',desc:'Injectie Actionar',sala:'Comun',tip:'Injectie',val:5000},
+  {data:'2026-05-14',desc:'Dispenser Servetele',sala:'Sala 2',tip:'Cheltuiala',val:229},
+  {data:'2026-05-14',desc:'Ornela',sala:'Sala 1',tip:'Incasare',val:999},
+  {data:'2026-05-14',desc:'Accesorii Baie',sala:'Sala 2',tip:'Cheltuiala',val:255},
+  {data:'2026-05-14',desc:'Leasing GRENKE',sala:'Sala 2',tip:'Cheltuiala',val:816},
+  {data:'2026-05-15',desc:'Aspirator',sala:'Sala 2',tip:'Cheltuiala',val:1300},
+  {data:'2026-05-15',desc:'LED Pereti+profil',sala:'Sala 2',tip:'Cheltuiala',val:515},
+  {data:'2026-05-15',desc:'Injectie Actionar',sala:'Comun',tip:'Injectie',val:1000},
+  {data:'2026-05-15',desc:'Marinela',sala:'Sala 1',tip:'Incasare',val:379},
+  {data:'2026-05-15',desc:'Chirie Sala 1',sala:'Sala 1',tip:'Cheltuiala',val:2300},
+  {data:'2026-05-15',desc:'Chirie Sala 2',sala:'Sala 2',tip:'Cheltuiala',val:1428},
+  {data:'2026-05-15',desc:'Intretinere S2',sala:'Sala 2',tip:'Cheltuiala',val:500},
+  {data:'2026-05-15',desc:'Utilitati S2',sala:'Sala 2',tip:'Cheltuiala',val:300},
+  {data:'2026-05-15',desc:'Rest design',sala:'Sala 2',tip:'Cheltuiala',val:620},
+  {data:'2026-05-17',desc:'Turkish',sala:'Sala 1',tip:'Incasare',val:1200},
+  {data:'2026-05-18',desc:'Sofia',sala:'Sala 1',tip:'Incasare',val:399},
+  {data:'2026-05-19',desc:'Soender',sala:'Sala 1',tip:'Incasare',val:1099},
+  {data:'2026-05-19',desc:'Intretinere S1',sala:'Sala 1',tip:'Cheltuiala',val:322},
+  {data:'2026-05-21',desc:'Georgiana',sala:'Sala 1',tip:'Incasare',val:399},
+  {data:'2026-05-22',desc:'Gabriela',sala:'Sala 1',tip:'Incasare',val:399},
+  {data:'2026-05-25',desc:'Diana (mai)',sala:'Sala 1',tip:'Incasare',val:359},
+  {data:'2026-05-25',desc:'Bianca (mai)',sala:'Sala 1',tip:'Incasare',val:599},
+  {data:'2026-05-26',desc:'Mihnea (mai)',sala:'Sala 1',tip:'Incasare',val:799},
+  {data:'2026-05-27',desc:'Ilinca 2 (mai)',sala:'Sala 1',tip:'Incasare',val:599},
+  {data:'2026-05-27',desc:'Andreea (mai)',sala:'Sala 1',tip:'Incasare',val:599},
+  {data:'2026-05-28',desc:'Ilinca (mai)',sala:'Sala 1',tip:'Incasare',val:379},
+  {data:'2026-05-30',desc:'Cela (mai)',sala:'Sala 1',tip:'Incasare',val:499},
+  {data:'2026-05-30',desc:'Lusiana (mai)',sala:'Sala 1',tip:'Incasare',val:379},
+  {data:'2026-05-30',desc:'MELISSA ISTUDOR',sala:'Sala 1',tip:'Incasare',val:399},
+  {data:'2026-05-31',desc:'Marketing (extra)',sala:'Sala 1',tip:'Cheltuiala',val:700},
+  {data:'2026-05-31',desc:'Website',sala:'Sala 1',tip:'Cheltuiala',val:122},
+  {data:'2026-05-31',desc:'Leasing Aparat Cardio',sala:'Sala 1',tip:'Cheltuiala',val:832},
+  {data:'2026-05-31',desc:'DIGI NET',sala:'Comun',tip:'Cheltuiala',val:217},
+  {data:'2026-06-01',desc:'Garantie Locatie',sala:'Sala 2',tip:'Cheltuiala',val:1275},
+  {data:'2026-06-03',desc:'Aoude',sala:'Sala 1',tip:'Incasare',val:299},
+  {data:'2026-06-03',desc:'Marketing (abonament)',sala:'Comun',tip:'Cheltuiala',val:800},
+  {data:'2026-06-04',desc:'Pita',sala:'Sala 1',tip:'Incasare',val:999},
+  {data:'2026-06-05',desc:'EMA',sala:'Sala 1',tip:'Incasare',val:499},
+  {data:'2026-06-09',desc:'Virginia',sala:'Sala 1',tip:'Incasare',val:399},
+  {data:'2026-06-09',desc:'Parcare (trimestrial)',sala:'Sala 2',tip:'Cheltuiala',val:740},
+  {data:'2026-06-11',desc:'Utilitati S1',sala:'Sala 1',tip:'Cheltuiala',val:225},
+  {data:'2026-06-14',desc:'Ornela',sala:'Sala 1',tip:'Incasare',val:999},
+  {data:'2026-06-14',desc:'Leasing GRENKE',sala:'Sala 2',tip:'Cheltuiala',val:816},
+  {data:'2026-06-15',desc:'Marinela',sala:'Sala 1',tip:'Incasare',val:379},
+  {data:'2026-06-15',desc:'Chirie Sala 1',sala:'Sala 1',tip:'Cheltuiala',val:2300},
+  {data:'2026-06-15',desc:'Chirie Sala 2',sala:'Sala 2',tip:'Cheltuiala',val:2805},
+  {data:'2026-06-15',desc:'Intretinere S2',sala:'Sala 2',tip:'Cheltuiala',val:500},
+  {data:'2026-06-15',desc:'Utilitati S2',sala:'Sala 2',tip:'Cheltuiala',val:300},
+  {data:'2026-06-15',desc:'Your Reformer',sala:'Sala 2',tip:'Cheltuiala',val:250},
+  {data:'2026-06-17',desc:'Turkish',sala:'Sala 1',tip:'Incasare',val:1200},
+  {data:'2026-06-17',desc:'Marina',sala:'Sala 1',tip:'Incasare',val:499},
+  {data:'2026-06-18',desc:'Sofia',sala:'Sala 1',tip:'Incasare',val:399},
+  {data:'2026-06-19',desc:'Soender',sala:'Sala 1',tip:'Incasare',val:1099},
+  {data:'2026-06-19',desc:'Intretinere S1',sala:'Sala 1',tip:'Cheltuiala',val:330},
+  {data:'2026-06-20',desc:'Antonovici',sala:'Sala 1',tip:'Incasare',val:399},
+  {data:'2026-06-21',desc:'Georgiana',sala:'Sala 1',tip:'Incasare',val:399},
+  {data:'2026-06-22',desc:'Gabriela',sala:'Sala 1',tip:'Incasare',val:399},
+  {data:'2026-06-25',desc:'Diana',sala:'Sala 1',tip:'Incasare',val:359},
+  {data:'2026-06-25',desc:'Bianca',sala:'Sala 1',tip:'Incasare',val:599},
+  {data:'2026-06-26',desc:'Mihnea',sala:'Sala 1',tip:'Incasare',val:799},
+  {data:'2026-06-27',desc:'Ilinca 2',sala:'Sala 1',tip:'Incasare',val:599},
+  {data:'2026-06-27',desc:'Andreea',sala:'Sala 1',tip:'Incasare',val:599},
+  {data:'2026-06-28',desc:'Ilinca',sala:'Sala 1',tip:'Incasare',val:379},
+  {data:'2026-06-30',desc:'Cela',sala:'Sala 1',tip:'Incasare',val:499},
+  {data:'2026-06-30',desc:'Lusiana',sala:'Sala 1',tip:'Incasare',val:379},
+  {data:'2026-06-30',desc:'MELISSA ISTUDOR',sala:'Sala 1',tip:'Incasare',val:399},
+  {data:'2026-06-30',desc:'Leasing S1 (Gym+Cardio)',sala:'Sala 1',tip:'Cheltuiala',val:832},
+  {data:'2026-06-30',desc:'Website',sala:'Comun',tip:'Cheltuiala',val:122},
+  {data:'2026-06-30',desc:'DIGI NET',sala:'Comun',tip:'Cheltuiala',val:217},
+  {data:'2026-07-01',desc:'Internet S1',sala:'Sala 1',tip:'Cheltuiala',val:180},
+  {data:'2026-07-01',desc:'Garantie Locatie',sala:'Sala 2',tip:'Cheltuiala',val:1275},
+  {data:'2026-07-03',desc:'Aoude',sala:'Sala 1',tip:'Incasare',val:299},
+  {data:'2026-07-03',desc:'Marketing (abonament)',sala:'Comun',tip:'Cheltuiala',val:800},
+  {data:'2026-07-04',desc:'Pita',sala:'Sala 1',tip:'Incasare',val:999},
+  {data:'2026-07-05',desc:'EMA',sala:'Sala 1',tip:'Incasare',val:499},
+  {data:'2026-07-09',desc:'Virginia',sala:'Sala 1',tip:'Incasare',val:399},
+  {data:'2026-07-09',desc:'Parcare (trimestrial)',sala:'Sala 2',tip:'Cheltuiala',val:740},
+  {data:'2026-07-11',desc:'Utilitati S1',sala:'Sala 1',tip:'Cheltuiala',val:225},
+  {data:'2026-07-14',desc:'Ornela',sala:'Sala 1',tip:'Incasare',val:999},
+  {data:'2026-07-14',desc:'Leasing GRENKE',sala:'Sala 2',tip:'Cheltuiala',val:816},
+  {data:'2026-07-15',desc:'Marinela',sala:'Sala 1',tip:'Incasare',val:379},
+  {data:'2026-07-15',desc:'Chirie Sala 1',sala:'Sala 1',tip:'Cheltuiala',val:2300},
+  {data:'2026-07-15',desc:'Chirie Sala 2',sala:'Sala 2',tip:'Cheltuiala',val:2805},
+  {data:'2026-07-15',desc:'Intretinere S2',sala:'Sala 2',tip:'Cheltuiala',val:500},
+  {data:'2026-07-15',desc:'Utilitati S2',sala:'Sala 2',tip:'Cheltuiala',val:300},
+  {data:'2026-07-15',desc:'Your Reformer',sala:'Sala 2',tip:'Cheltuiala',val:250},
+  {data:'2026-07-17',desc:'Turkish',sala:'Sala 1',tip:'Incasare',val:1200},
+  {data:'2026-07-17',desc:'Marina',sala:'Sala 1',tip:'Incasare',val:499},
+  {data:'2026-07-18',desc:'Sofia',sala:'Sala 1',tip:'Incasare',val:399},
+  {data:'2026-07-19',desc:'Soender',sala:'Sala 1',tip:'Incasare',val:1099},
+  {data:'2026-07-19',desc:'Intretinere S1',sala:'Sala 1',tip:'Cheltuiala',val:330},
+  {data:'2026-07-20',desc:'Antonovici',sala:'Sala 1',tip:'Incasare',val:399},
+  {data:'2026-07-21',desc:'Georgiana',sala:'Sala 1',tip:'Incasare',val:399},
+  {data:'2026-07-22',desc:'Gabriela',sala:'Sala 1',tip:'Incasare',val:399},
+  {data:'2026-07-25',desc:'Diana',sala:'Sala 1',tip:'Incasare',val:359},
+  {data:'2026-07-25',desc:'Bianca',sala:'Sala 1',tip:'Incasare',val:599},
+  {data:'2026-07-26',desc:'Mihnea',sala:'Sala 1',tip:'Incasare',val:799},
+  {data:'2026-07-27',desc:'Ilinca 2',sala:'Sala 1',tip:'Incasare',val:599},
+  {data:'2026-07-27',desc:'Andreea',sala:'Sala 1',tip:'Incasare',val:599},
+  {data:'2026-07-28',desc:'Ilinca',sala:'Sala 1',tip:'Incasare',val:379},
+  {data:'2026-07-30',desc:'Cela',sala:'Sala 1',tip:'Incasare',val:499},
+  {data:'2026-07-30',desc:'Lusiana',sala:'Sala 1',tip:'Incasare',val:379},
+  {data:'2026-07-30',desc:'MELISSA ISTUDOR',sala:'Sala 1',tip:'Incasare',val:399},
+  {data:'2026-07-30',desc:'Leasing S1 (Gym+Cardio)',sala:'Sala 1',tip:'Cheltuiala',val:832},
+  {data:'2026-07-30',desc:'Website',sala:'Comun',tip:'Cheltuiala',val:122},
+];
+
+const undoStack=[];
+const MAX_UNDO=30;
+let rows=[];
+
+function snapshot(){
+  undoStack.push(JSON.stringify(rows));
+  if(undoStack.length>MAX_UNDO) undoStack.shift();
+  const btn=document.getElementById('btnUndo');
+  if(btn){btn.disabled=false;btn.style.opacity='1';btn.style.cursor='pointer';btn.title='Ctrl+Z — '+undoStack.length+' acțiuni în istoric';}
+}
+
+async function undo(){
+  if(!undoStack.length) return;
+  rows=JSON.parse(undoStack.pop());
+  await dbSave();
+  updateCards();
+  renderTable();
+  const btn=document.getElementById('btnUndo');
+  if(btn){
+    if(!undoStack.length){btn.disabled=true;btn.style.opacity='.4';btn.style.cursor='not-allowed';btn.title='Ctrl+Z';}
+    else{btn.title='Ctrl+Z — '+undoStack.length+' acțiuni în istoric';}
+    btn.innerHTML='<i class="ti ti-check"></i> Restaurat!';
+    setTimeout(()=>{btn.innerHTML='<i class="ti ti-arrow-back-up"></i> Undo';},1200);
+  }
+}
+
+function ron(n){return Number(n).toLocaleString('ro-RO',{minimumFractionDigits:0,maximumFractionDigits:0})+' RON'}
+
+function recompute(){
+  let sold=SOLD_INITIAL;
+  rows.forEach(r=>{
+    if(r.soldOverride!=null){
+      sold=r.soldOverride;
+    } else {
+      if(r.tip==='Incasare') sold+=r.val;
+      else if(r.tip==='Cheltuiala') sold-=r.val;
+      else sold+=r.val;
+    }
+    r.sold=sold;
+  });
+  return sold;
+}
+
+function updateCards(){
+  let totalIn=0,totalOut=0,totalInj=0,finalSold=recompute();
+  rows.forEach(r=>{
+    if(r.tip==='Incasare') totalIn+=r.val;
+    else if(r.tip==='Cheltuiala') totalOut+=r.val;
+    else totalInj+=r.val;
+  });
+  const sc=document.getElementById('soldCurent');
+  sc.textContent=ron(finalSold);
+  sc.className='card-val '+(finalSold<LIMITA?'red':finalSold<LIMITA*1.2?'orange':'green');
+  document.getElementById('totalIn').textContent=ron(totalIn);
+  document.getElementById('totalOut').textContent=ron(totalOut);
+  document.getElementById('totalInj').textContent=ron(totalInj);
+  document.getElementById('warnBar').style.display=finalSold<LIMITA?'flex':'none';
+}
+
+function monthKey(d){return d.substring(5,7)}
+
+const todayStr=new Date().toISOString().split('T')[0];
+
+function renderTable(){
+  recompute();
+  const q=(document.getElementById('searchBox').value||'').toLowerCase();
+  const filtered=rows.filter(r=>{
+    if(filterSala!=='all'&&r.sala!==filterSala) return false;
+    if(filterTip!=='all'&&r.tip!==filterTip) return false;
+    if(filterMonth!=='all'&&monthKey(r.data)!==filterMonth) return false;
+    if(q&&!r.desc.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  const tbody=document.getElementById('tblBody');
+  tbody.innerHTML='';
+  filtered.forEach((r)=>{
+    const idx=rows.indexOf(r);
+    const salaCls=r.sala==='Sala 1'?'s1':r.sala==='Sala 2'?'s2':'sc';
+    const tipBadge=r.tip==='Incasare'?'badge-in':r.tip==='Injectie'?'badge-inj':'badge-out';
+    const tipLabel=r.tip==='Incasare'?'Încasare':r.tip==='Cheltuiala'?'Cheltuială':'Injecție';
+    const inVal=r.tip==='Incasare'?'<span style="color:#1D9E75;font-weight:600">+'+ron(r.val)+'</span>':'—';
+    const outVal=r.tip==='Cheltuiala'?'<span style="color:#E24B4A;font-weight:600">−'+ron(r.val)+'</span>':'—';
+    const injVal=r.tip==='Injectie'?'<span style="color:#BA7517;font-weight:600">+'+ron(r.val)+'</span>':'—';
+    const soldColor=r.sold<LIMITA?'#A32D2D':r.sold<LIMITA*1.2?'#633806':'#1a1a18';
+    const isOverride=r.soldOverride!=null;
+    const soldDisplay=`<div style="display:flex;align-items:center;justify-content:flex-end;gap:4px;cursor:pointer" onclick="startSoldEdit(${idx})" title="Click pentru a edita soldul manual">
+      <span style="font-weight:600;color:${isOverride?'#185FA5':soldColor}">${ron(r.sold)}</span>
+      ${isOverride?'<span class="override-dot" title="Sold corectat manual"></span>':''}
+      <i class="ti ti-pencil" style="font-size:11px;color:#ddd;margin-left:1px"></i>
+    </div>`;
+    const d=new Date(r.data);
+    const dStr=('0'+d.getDate()).slice(-2)+'.'+('0'+(d.getMonth()+1)).slice(-2);
+    const isToday=r.data===todayStr;
+    const todayBadge=isToday?'<span class="today-label">azi</span>':'';
+    const tr=document.createElement('tr');
+    tr.draggable=true;
+    tr.dataset.idx=idx;
+    if(isToday) tr.className='today-row';
+    else if(r.tip==='Incasare') tr.className='incasare-row';
+    else if(r.tip==='Cheltuiala') tr.className='cheltuiala-row';
+    tr.innerHTML=`
+      <td style="color:#999;font-size:12px;white-space:nowrap">
+        <span class="drag-handle" title="Trage pentru a schimba data"><i class="ti ti-grip-vertical"></i></span>
+        ${dStr}${todayBadge}
+      </td>
+      <td>
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px">
+          <span>${r.desc}</span>
+          <span class="mob-amount" style="font-weight:600;font-size:12px;color:${r.tip==='Incasare'?'#1D9E75':r.tip==='Cheltuiala'?'#E24B4A':'#BA7517'};white-space:nowrap">${r.tip==='Cheltuiala'?'−':'+'}${ron(r.val)}</span>
+        </div>
+        <div class="mob-badges">
+          <span class="sala-badge ${salaCls}" style="font-size:10px;padding:1px 6px">${r.sala}</span>
+          <span class="badge ${tipBadge}" style="font-size:10px;padding:1px 6px">${tipLabel}</span>
+        </div>
+      </td>
+      <td><span class="sala-badge ${salaCls}">${r.sala}</span></td>
+      <td><span class="badge ${tipBadge}">${tipLabel}</span></td>
+      <td class="num" id="cell-in-${idx}">${inVal}</td>
+      <td class="num" id="cell-out-${idx}">${outVal}</td>
+      <td class="num" id="cell-inj-${idx}">${injVal}</td>
+      <td class="num sold-col" id="cell-sold-${idx}">${soldDisplay}</td>
+      <td style="white-space:nowrap">
+        <button class="edit-btn" onclick="startEdit(${idx})" title="Editează suma tranzacției"><i class="ti ti-pencil"></i></button>
+        ${isOverride?`<button class="edit-btn" onclick="clearSoldOverride(${idx})" title="Resetează sold la formulă" style="color:#B5D4F4"><i class="ti ti-refresh"></i></button>`:''}
+        <button class="del-btn" onclick="deleteRow(${idx})" title="Șterge"><i class="ti ti-trash"></i></button>
+      </td>`;
+    tr.addEventListener('dragstart',onDragStart);
+    tr.addEventListener('dragover',onDragOver);
+    tr.addEventListener('dragleave',onDragLeave);
+    tr.addEventListener('drop',onDrop);
+    tr.addEventListener('dragend',onDragEnd);
+    tbody.appendChild(tr);
+  });
+  if(!filtered.length) tbody.innerHTML='<tr><td colspan="9" class="empty-row">Nicio tranzacție găsită.</td></tr>';
+  renderChart();
+}
+
+function startEdit(idx){
+  const r=rows[idx];
+  const tipCells={'Incasare':'cell-in-','Cheltuiala':'cell-out-','Injectie':'cell-inj-'};
+  const cellId=tipCells[r.tip]+idx;
+  const cell=document.getElementById(cellId);
+  if(!cell) return;
+  const sign=r.tip==='Cheltuiala'?'−':'+';
+  const color=r.tip==='Incasare'?'#1D9E75':r.tip==='Cheltuiala'?'#E24B4A':'#BA7517';
+  cell.innerHTML=`<div style="display:flex;align-items:center;gap:5px;justify-content:flex-end">
+    <span style="color:${color};font-weight:600">${sign}</span>
+    <input class="edit-input" id="edit-input-${idx}" type="number" value="${r.val}" min="0" step="1">
+    <button class="save-btn" onclick="saveEdit(${idx})">✓</button>
+    <button class="cancel-btn" onclick="renderTable()">✕</button>
+  </div>`;
+  const inp=document.getElementById('edit-input-'+idx);
+  inp.focus();inp.select();
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter')saveEdit(idx);if(e.key==='Escape')renderTable();});
+}
+
+async function saveEdit(idx){
+  const inp=document.getElementById('edit-input-'+idx);
+  const newVal=parseFloat(inp.value);
+  if(isNaN(newVal)||newVal<=0){inp.focus();return;}
+  snapshot();
+  rows[idx].val=newVal;
+  rows[idx].soldOverride=null;
+  await dbSave();
+  updateCards();
+  renderTable();
+}
+
+function startSoldEdit(idx){
+  const cell=document.getElementById('cell-sold-'+idx);
+  if(!cell) return;
+  const r=rows[idx];
+  cell.innerHTML=`<div style="display:flex;align-items:center;gap:5px;justify-content:flex-end">
+    <input class="sold-edit-input" id="sold-input-${idx}" type="number" value="${Math.round(r.sold)}" min="0" step="1">
+    <button class="save-btn" onclick="saveSoldEdit(${idx})">✓</button>
+    <button class="cancel-btn" onclick="renderTable()">✕</button>
+  </div>`;
+  const inp=document.getElementById('sold-input-'+idx);
+  inp.focus();inp.select();
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter')saveSoldEdit(idx);if(e.key==='Escape')renderTable();});
+}
+
+async function saveSoldEdit(idx){
+  const inp=document.getElementById('sold-input-'+idx);
+  const newSold=parseFloat(inp.value);
+  if(isNaN(newSold)){inp.focus();return;}
+  snapshot();
+  rows[idx].soldOverride=newSold;
+  rows[idx].sold=newSold;
+  let sold=newSold;
+  for(let i=idx+1;i<rows.length;i++){
+    if(rows[i].soldOverride!=null){sold=rows[i].soldOverride;}
+    else{if(rows[i].tip==='Incasare') sold+=rows[i].val;else if(rows[i].tip==='Cheltuiala') sold-=rows[i].val;else sold+=rows[i].val;}
+    rows[i].sold=sold;
+  }
+  await dbSave();
+  updateCards();
+  renderTable();
+}
+
+async function clearSoldOverride(idx){
+  if(!confirm('Resetezi soldul la valoarea calculată automat din formulă?')) return;
+  snapshot();
+  rows[idx].soldOverride=null;
+  await dbSave();
+  updateCards();
+  renderTable();
+}
+
+let chartInst=null;
+function renderChart(){
+  const labels=rows.map(r=>{const d=new Date(r.data);return('0'+d.getDate()).slice(-2)+'.'+('0'+(d.getMonth()+1)).slice(-2);});
+  const data=rows.map(r=>r.sold);
+  const ptColors=data.map(v=>v<LIMITA?'#E24B4A':v<LIMITA*1.2?'#EF9F27':'#1D9E75');
+  const ctx=document.getElementById('chartSold').getContext('2d');
+  if(chartInst){chartInst.destroy();}
+  chartInst=new Chart(ctx,{
+    type:'line',
+    data:{labels,datasets:[
+      {label:'Sold (RON)',data,borderColor:'#378ADD',backgroundColor:'rgba(55,138,221,0.06)',tension:0.3,pointBackgroundColor:ptColors,pointRadius:3,borderWidth:2,fill:true},
+      {label:'Limita 9.500',data:Array(data.length).fill(LIMITA),borderColor:'rgba(226,75,74,0.5)',borderDash:[6,4],borderWidth:1.5,pointRadius:0,fill:false}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>'Sold: '+ron(c.raw)}}},
+      scales:{
+        x:{ticks:{font:{size:10},maxRotation:45,autoSkip:true,maxTicksLimit:24},grid:{display:false}},
+        y:{ticks:{callback:v=>v.toLocaleString('ro-RO')+ ' RON',font:{size:10}},grid:{color:'rgba(0,0,0,0.05)'}}
+      }
+    }
+  });
+}
+
+function setFilter(type,val,btn){
+  if(type==='sala'){
+    filterSala=val;
+    document.querySelectorAll('.filters .filter-btn:not([data-group])').forEach(b=>b.classList.remove('active'));
+  } else {
+    filterTip=val;
+    document.querySelectorAll('.filter-btn[data-group="tip"]').forEach(b=>b.classList.remove('active'));
+  }
+  btn.classList.add('active');
+  renderTable();
+}
+function setMonth(m,btn){
+  filterMonth=m;
+  document.querySelectorAll('.month-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTable();
+}
+
+async function addRow(){
+  const data=document.getElementById('newData').value;
+  const desc=document.getElementById('newDesc').value.trim();
+  const sala=document.getElementById('newSala').value;
+  const tip=document.getElementById('newTip').value;
+  const suma=parseFloat(document.getElementById('newSuma').value);
+  if(!data||!desc||isNaN(suma)||suma<=0){alert('Completează toate câmpurile corect.');return;}
+  snapshot();
+  rows.push({data,desc,sala,tip,val:suma,soldOverride:null,sold:0});
+  rows.sort((a,b)=>a.data.localeCompare(b.data));
+  await dbSave();
+  document.getElementById('newDesc').value='';
+  document.getElementById('newSuma').value='';
+  updateCards();
+  renderTable();
+}
+
+async function deleteRow(idx){
+  if(!confirm('Ștergi tranzacția "'+rows[idx].desc+'"?')) return;
+  snapshot();
+  rows.splice(idx,1);
+  await dbSave();
+  updateCards();
+  renderTable();
+}
+
+function exportCSV(){
+  recompute();
+  const hdr='Data,Descriere,Sala,Tip,Intrare (RON),Iesire (RON),Injectie (RON),Sold Cumulat (RON)';
+  const body=rows.map(r=>{
+    const inV=r.tip==='Incasare'?r.val:'';
+    const outV=r.tip==='Cheltuiala'?r.val:'';
+    const injV=r.tip==='Injectie'?r.val:'';
+    return [r.data,'"'+r.desc+'"',r.sala,r.tip,inV,outV,injV,r.sold].join(',');
+  }).join('\n');
+  const blob=new Blob(['\uFEFF'+hdr+'\n'+body],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='GymGo_Cashflow_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+}
+
+function scrollToToday(){
+  filterSala='all'; filterTip='all'; filterMonth='all';
+  document.querySelectorAll('.filter-btn:not([data-group])').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.filter-btn[data-group="tip"]').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.month-tab').forEach(b=>b.classList.remove('active'));
+  document.querySelector('.filters .filter-btn').classList.add('active');
+  document.querySelector('.filter-btn[data-group="tip"]').classList.add('active');
+  document.querySelector('.month-tab').classList.add('active');
+  document.getElementById('searchBox').value='';
+  renderTable();
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      // First try exact today
+      let target=document.querySelector('tr.today-row');
+      if(!target){
+        // Find closest row to today (last row with date <= today)
+        const allTrs=[...document.querySelectorAll('#tblBody tr[data-idx]')];
+        let closest=null;
+        let closestDiff=Infinity;
+        const todayTime=new Date(todayStr).getTime();
+        allTrs.forEach(tr=>{
+          const idx=parseInt(tr.dataset.idx);
+          const rowTime=new Date(rows[idx].data).getTime();
+          const diff=Math.abs(todayTime-rowTime);
+          if(diff<closestDiff){closestDiff=diff;closest=tr;}
+        });
+        target=closest;
+      }
+      if(target){
+        target.scrollIntoView({behavior:'smooth',block:'center'});
+        target.style.outline='3px solid #378ADD';
+        target.style.outlineOffset='0px';
+        setTimeout(()=>{target.style.outline='';},2500);
+      }
+    });
+  });
+}
+
+let dragSrcIdx=null;
+
+function onDragStart(e){
+  dragSrcIdx=parseInt(this.dataset.idx);
+  this.classList.add('dragging');
+  e.dataTransfer.effectAllowed='move';
+}
+function onDragOver(e){
+  e.preventDefault();
+  e.dataTransfer.dropEffect='move';
+  document.querySelectorAll('tr.drag-over').forEach(r=>r.classList.remove('drag-over'));
+  this.classList.add('drag-over');
+}
+function onDragLeave(){
+  this.classList.remove('drag-over');
+}
+function onDragEnd(){
+  document.querySelectorAll('tr.dragging').forEach(r=>r.classList.remove('dragging'));
+  document.querySelectorAll('tr.drag-over').forEach(r=>r.classList.remove('drag-over'));
+}
+function onDrop(e){
+  e.preventDefault();
+  const targetIdx=parseInt(this.dataset.idx);
+  document.querySelectorAll('tr.drag-over').forEach(r=>r.classList.remove('drag-over'));
+  document.querySelectorAll('tr.dragging').forEach(r=>r.classList.remove('dragging'));
+  if(dragSrcIdx==null||dragSrcIdx===targetIdx) return;
+  const srcRow=rows[dragSrcIdx];
+  const targetRow=rows[targetIdx];
+  // Show date picker popup — default to target row's date
+  showDatePopup(srcRow, targetRow.data);
+}
+
+function showDatePopup(srcRow, suggestedDate){
+  const overlay=document.createElement('div');
+  overlay.className='date-popup-overlay';
+  overlay.innerHTML=`
+    <div class="date-popup">
+      <h3><i class="ti ti-calendar-event" style="margin-right:6px"></i>Schimbă data tranzacției</h3>
+      <p style="margin-bottom:.5rem;color:#1a1a18;font-weight:500">"${srcRow.desc}"</p>
+      <p>Data curentă: <strong>${srcRow.data}</strong></p>
+      <input type="date" id="newDatePicker" value="${suggestedDate}">
+      <div class="date-popup-btns">
+        <button class="btn-cancel-popup" onclick="document.body.removeChild(this.closest('.date-popup-overlay'))">Anulează</button>
+        <button class="btn-confirm" onclick="confirmDateChange()">Mută tranzacția</button>
+      </div>
+    </div>`;
+  overlay.querySelector('.date-popup-overlay') && overlay.addEventListener('click',e=>{if(e.target===overlay)document.body.removeChild(overlay);});
+  overlay.addEventListener('click',e=>{if(e.target===overlay)document.body.removeChild(overlay);});
+  overlay._srcRow=srcRow;
+  document.body.appendChild(overlay);
+  document.getElementById('newDatePicker').focus();
+  document.getElementById('newDatePicker').addEventListener('keydown',e=>{if(e.key==='Enter')confirmDateChange();if(e.key==='Escape')document.body.removeChild(overlay);});
+}
+
+async function confirmDateChange(){
+  const overlay=document.querySelector('.date-popup-overlay');
+  if(!overlay) return;
+  const newDate=document.getElementById('newDatePicker').value;
+  if(!newDate){alert('Selectează o dată.');return;}
+  snapshot();
+  const srcRow=overlay._srcRow;
+  srcRow.data=newDate;
+  srcRow.soldOverride=null;
+  rows.sort((a,b)=>a.data.localeCompare(b.data));
+  await dbSave();
+  document.body.removeChild(overlay);
+  updateCards();
+  renderTable();
+  setTimeout(()=>{
+    const moved=document.querySelector(`tr[data-idx="${rows.indexOf(srcRow)}"]`);
+    if(moved){moved.scrollIntoView({behavior:'smooth',block:'center'});moved.style.outline='3px solid #378ADD';setTimeout(()=>{moved.style.outline='';},2000);}
+  },150);
+}
+
+document.addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey)&&e.key==='z'&&!e.shiftKey){e.preventDefault();undo();}
+});
+
+async function init(){
+  document.getElementById('tblBody').innerHTML='<tr><td colspan="9" class="empty-row" style="color:#888"><i class="ti ti-cloud-download" style="margin-right:6px"></i>Se încarcă datele din cloud…</td></tr>';
+  try{
+    const data=await dbLoad();
+    if(data&&data.length>0){
+      rows=data.map(r=>({...r,sold:0}));
+    } else {
+      rows=defaultRows.map(r=>({...r,sold:0}));
+      await dbSave();
+    }
+  }catch(e){
+    console.error('Firebase error:',e);
+    const local=localStorage.getItem(STORAGE_KEY);
+    rows=local?JSON.parse(local):[...defaultRows];
+  }
+  document.getElementById('newData').value=todayStr;
+  updateCards();
+  renderTable();
+  setTimeout(()=>{
+    const todayRow=document.querySelector('tr.today-row');
+    if(todayRow){todayRow.scrollIntoView({behavior:'smooth',block:'center'});}
+    else{
+      const allTrs=[...document.querySelectorAll('#tblBody tr[data-idx]')];
+      let closest=null,closestDiff=Infinity;
+      const todayTime=new Date(todayStr).getTime();
+      allTrs.forEach(tr=>{const idx=parseInt(tr.dataset.idx);const diff=Math.abs(todayTime-new Date(rows[idx].data).getTime());if(diff<closestDiff){closestDiff=diff;closest=tr;}});
+      if(closest)closest.scrollIntoView({behavior:'smooth',block:'center'});
+    }
+  },300);
+}
+
+init();
+</script>
+</body>
+</html>
