@@ -217,6 +217,8 @@ tr.rollover-row:hover td{background:#F3EEF9!important}
   <button class="month-tab" onclick="setMonth('05',this)">Mai</button>
   <button class="month-tab" onclick="setMonth('06',this)">Iunie</button>
   <button class="month-tab" onclick="setMonth('07',this)">Iulie</button>
+  <button class="month-tab" onclick="setMonth('08',this)">August</button>
+  <button class="month-tab" onclick="setMonth('09',this)">Septembrie</button>
 </div>
 
 <div class="add-section" style="margin-bottom:1.2rem">
@@ -287,6 +289,7 @@ tr.rollover-row:hover td{background:#F3EEF9!important}
     <button class="export-btn" onclick="showCapAddForm()" style="background:#EAF3DE;border-color:#1D9E75;color:#0F6E56;font-weight:600">+ Client nou</button>
     <button class="export-btn" id="btnDuplicate" onclick="duplicateFromPrevMonth()">↩ Duplică din <span id="dupFromLbl">luna anterioară</span></button>
     <button class="export-btn" onclick="syncCapToFlow()" style="background:#E6F1FB;border-color:#378ADD;color:#185FA5;font-weight:600">🔗 Sync → Cashflow</button>
+    <button class="export-btn" onclick="extendToSeptember()" style="background:#F3EEF9;border-color:#7B5EA7;color:#5B3E8A;font-weight:600">📅 Extinde → Sep</button>
   </div>
 </div>
 
@@ -296,6 +299,8 @@ tr.rollover-row:hover td{background:#F3EEF9!important}
   <button class="month-tab active" onclick="setCapMonth('2026-05',this)">Mai</button>
   <button class="month-tab" onclick="setCapMonth('2026-06',this)">Iunie</button>
   <button class="month-tab" onclick="setCapMonth('2026-07',this)">Iulie</button>
+  <button class="month-tab" onclick="setCapMonth('2026-08',this)">August</button>
+  <button class="month-tab" onclick="setCapMonth('2026-09',this)">Septembrie</button>
 </div>
 
 <!-- Summary cards -->
@@ -874,6 +879,17 @@ async function addRow(){
   if(!data||!desc||isNaN(suma)||suma<=0){alert('Completează toate câmpurile corect.');return;}
   snapshot();
   rows.push({data,desc,sala,tip,val:suma,soldOverride:null,sold:0,recurring:recurring||null});
+  if(recurring){
+    const [ry,rm,rd]=data.split('-').map(Number);
+    for(let nm=rm+1;nm<=9;nm++){
+      const dim=new Date(ry,nm,0).getDate();
+      const nd=Math.min(rd,dim);
+      const nd2=String(nd).padStart(2,'0');
+      const nextDate=`${ry}-${String(nm).padStart(2,'0')}-${nd2}`;
+      if(!rows.find(r=>r.data===nextDate&&r.desc===desc))
+        rows.push({data:nextDate,desc,sala,tip,val:suma,soldOverride:null,sold:0,recurring:true});
+    }
+  }
   rows.sort((a,b)=>a.data.localeCompare(b.data));
   await dbSave();
   document.getElementById('newDesc').value='';
@@ -1214,9 +1230,17 @@ async function addMember(){
   const price=parseInt(document.getElementById('capNewPrice').value)||0;
   if(!name||!startDate){alert('Completează numele și data de start.');return;}
   capNextId++;
-  capacityData.push({id:capNextId,name,startDate,sessions,price});
+  const newMb={id:capNextId,name,startDate,sessions,price};
+  capacityData.push(newMb);
   capacityData.sort((a,b)=>a.startDate.localeCompare(b.startDate));
   await capDbSave();
+  if(price>0){
+    rows.push({data:startDate,desc:name,sala:'Sala 1',tip:'Incasare',val:price,soldOverride:null,sold:0,capId:capNextId});
+    rows.sort((a,b)=>a.data.localeCompare(b.data));
+    await dbSave();
+    updateCards();
+    renderTable();
+  }
   document.getElementById('capAddSection').style.display='none';
   document.getElementById('capNewName').value='';
   document.getElementById('capNewPrice').value='';
@@ -1390,6 +1414,46 @@ function switchTab(tab){
 // ================================================================
 //  INIT
 // ================================================================
+async function extendToSeptember(){
+  if(!confirm('Extinzi abonamentele + cheltuielile recurente din Iulie până în Septembrie?\n\nSe adaugă automat August și Septembrie în Capacity și Cashflow.')) return;
+  let capAdded=0,cfAdded=0,expAdded=0;
+  for(const [srcM,nm] of [['2026-07','2026-08'],['2026-08','2026-09']]){
+    const [ny,nmn]=nm.split('-').map(Number);
+    capacityData.filter(mb=>mb.startDate.startsWith(srcM)).forEach(mb=>{
+      const [sy,sm,sd]=mb.startDate.split('-').map(Number);
+      const dim=new Date(ny,nmn,0).getDate();
+      const nd=Math.min(sd,dim);
+      const newStart=`${ny}-${String(nmn).padStart(2,'0')}-${String(nd).padStart(2,'0')}`;
+      if(!capacityData.find(m=>m.name===mb.name&&m.startDate===newStart)){
+        capNextId++;
+        capacityData.push({id:capNextId,name:mb.name,startDate:newStart,sessions:mb.sessions,price:mb.price});
+        capAdded++;
+        if(mb.price>0&&!rows.find(r=>r.capId===capNextId)){
+          rows.push({data:newStart,desc:mb.name,sala:'Sala 1',tip:'Incasare',val:mb.price,soldOverride:null,sold:0,capId:capNextId});
+          cfAdded++;
+        }
+      }
+    });
+    rows.filter(r=>r.data.startsWith(srcM)&&r.recurring&&r.tip==='Cheltuiala').forEach(r=>{
+      const [ry,rm,rd]=r.data.split('-').map(Number);
+      const dim=new Date(ny,nmn,0).getDate();
+      const nd=Math.min(rd,dim);
+      const newDate=`${ny}-${String(nmn).padStart(2,'0')}-${String(nd).padStart(2,'0')}`;
+      if(!rows.find(x=>x.data===newDate&&x.desc===r.desc)){
+        rows.push({data:newDate,desc:r.desc,sala:r.sala,tip:'Cheltuiala',val:r.val,soldOverride:null,sold:0,recurring:true});
+        expAdded++;
+      }
+    });
+  }
+  capacityData.sort((a,b)=>a.startDate.localeCompare(b.startDate));
+  rows.sort((a,b)=>a.data.localeCompare(b.data));
+  await Promise.all([dbSave(),capDbSave()]);
+  updateCards();
+  renderTable();
+  renderCapacity();
+  alert(`✓ Extindere completă!\n• ${capAdded} abonamente noi (Aug+Sep)\n• ${cfAdded} încasări adăugate în Cashflow\n• ${expAdded} cheltuieli recurente adăugate`);
+}
+
 async function migrateRecurring(){
   if(rows.some(r=>r.recurring)) return;
   const recurringNames=['Utilitati S1','Leasing GRENKE','Chirie Sala 1','Chirie Sala 2','Intretinere S2','Utilitati S2','Your Reformer','Intretinere S1','Marketing (abonament)','Website'];
