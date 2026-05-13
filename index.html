@@ -117,7 +117,7 @@ tr.drag-over td{border-top:2.5px solid #378ADD!important}
 @media(max-width:700px){
   .mob-amount{display:block!important}
   .mob-badges{display:flex!important;gap:4px;margin-top:3px;flex-wrap:wrap}
-  .drag-handle{display:none!important}
+  .drag-handle{display:inline-block!important;font-size:20px;color:#ccc;padding:4px 8px;touch-action:none;cursor:grab}
   thead th:nth-child(3),tbody td:nth-child(3),
   thead th:nth-child(4),tbody td:nth-child(4),
   thead th:nth-child(5),tbody td:nth-child(5),
@@ -529,6 +529,7 @@ function renderTable(){
     tr.addEventListener('dragleave',onDragLeave);
     tr.addEventListener('drop',onDrop);
     tr.addEventListener('dragend',onDragEnd);
+    addTouchDrag(tr);
     tbody.appendChild(tr);
   });
   if(!filtered.length) tbody.innerHTML='<tr><td colspan="9" class="empty-row">Nicio tranzacție găsită.</td></tr>';
@@ -728,6 +729,49 @@ function scrollToToday(){
 }
 
 let dragSrcIdx=null;
+let touchSrcIdx=null,touchActive=false,touchTimer=null;
+
+function addTouchDrag(tr){
+  tr.addEventListener('touchstart',function(e){
+    const self=this;
+    const idx=parseInt(self.dataset.idx);
+    touchTimer=setTimeout(()=>{
+      touchActive=true;touchSrcIdx=idx;
+      self.classList.add('dragging');
+      navigator.vibrate&&navigator.vibrate(60);
+    },380);
+  },{passive:true});
+  tr.addEventListener('touchmove',function(e){
+    if(!touchActive){clearTimeout(touchTimer);return;}
+    e.preventDefault();
+    const t=e.touches[0];
+    document.querySelectorAll('tr.drag-over').forEach(r=>r.classList.remove('drag-over'));
+    const el=document.elementFromPoint(t.clientX,t.clientY);
+    const tgt=el?.closest('tr[data-idx]');
+    if(tgt&&parseInt(tgt.dataset.idx)!==touchSrcIdx)tgt.classList.add('drag-over');
+  },{passive:false});
+  tr.addEventListener('touchend',function(e){
+    clearTimeout(touchTimer);
+    if(!touchActive)return;
+    touchActive=false;
+    const t=e.changedTouches[0];
+    const el=document.elementFromPoint(t.clientX,t.clientY);
+    const tgt=el?.closest('tr[data-idx]');
+    document.querySelectorAll('tr.drag-over').forEach(r=>r.classList.remove('drag-over'));
+    document.querySelectorAll('tr.dragging').forEach(r=>r.classList.remove('dragging'));
+    if(tgt){
+      const ti=parseInt(tgt.dataset.idx);
+      if(ti!==touchSrcIdx)showDatePopup(rows[touchSrcIdx],rows[ti].data);
+    }
+    touchSrcIdx=null;
+  },{passive:true});
+  tr.addEventListener('touchcancel',function(){
+    clearTimeout(touchTimer);touchActive=false;
+    document.querySelectorAll('tr.dragging').forEach(r=>r.classList.remove('dragging'));
+    document.querySelectorAll('tr.drag-over').forEach(r=>r.classList.remove('drag-over'));
+    touchSrcIdx=null;
+  },{passive:true});
+}
 
 function onDragStart(e){
   dragSrcIdx=parseInt(this.dataset.idx);
