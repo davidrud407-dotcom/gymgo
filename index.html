@@ -3,12 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GYM&GO — Cashflow Dashboard</title>
+<title>GYM&GO — Dashboard</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8f7f4;color:#1a1a18;min-height:100vh;padding:1.5rem}
 .container{max-width:1100px;margin:0 auto}
+/* ---- TABS ---- */
+.tab-bar{display:flex;gap:0;margin-bottom:1.4rem;border-bottom:2px solid rgba(0,0,0,0.09)}
+.tab-btn{background:none;border:none;padding:.6rem 1.3rem;font-size:14px;font-weight:500;cursor:pointer;color:#888;border-bottom:2.5px solid transparent;margin-bottom:-2px;transition:all .15s;border-radius:8px 8px 0 0}
+.tab-btn.active{color:#1a1a18;border-bottom-color:#1a1a18}
+.tab-btn:hover:not(.active){color:#444;background:#f0eeea}
+/* ---- SHARED ---- */
 .hdr{padding:1.25rem 0 1rem;border-bottom:1px solid rgba(0,0,0,0.1);margin-bottom:1.2rem;display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px}
 .hdr-title{font-size:22px;font-weight:600;color:#1a1a18}
 .hdr-sub{font-size:13px;color:#888}
@@ -21,6 +27,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .card-val.red{color:#E24B4A}
 .card-val.orange{color:#BA7517}
 .card-val.blue{color:#185FA5}
+.card-val.purple{color:#7B5EA7}
 .filters{display:flex;gap:6px;margin-bottom:.75rem;flex-wrap:wrap;align-items:center}
 .filter-btn{background:#fff;border:1px solid rgba(0,0,0,0.12);border-radius:8px;padding:5px 12px;font-size:12px;cursor:pointer;color:#444;transition:all .15s}
 .filter-btn.active{background:#1a1a18;color:#fff;border-color:#1a1a18}
@@ -114,6 +121,15 @@ tr.drag-over td{border-top:2.5px solid #378ADD!important}
 .btn-cancel-popup:hover{background:#f5f5f5}
 .mob-amount{display:none}
 .mob-badges{display:none}
+/* ---- CAPACITY SPECIFIC ---- */
+.cap-fill-bar-wrap{background:#fff;border:1px solid rgba(0,0,0,0.08);border-radius:10px;padding:.85rem 1rem;margin-bottom:1.2rem}
+.cap-fill-track{background:#f0eeea;border-radius:6px;height:10px;overflow:hidden}
+.cap-fill-bar{height:100%;border-radius:6px;transition:width .4s ease,background .3s}
+.rollover-badge{font-size:10px;color:#7B5EA7;background:#EDE7F6;padding:1px 6px;border-radius:4px;margin-left:5px;font-weight:500}
+.ses-badge{display:inline-block;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;background:#E6F1FB;color:#185FA5}
+tr.rollover-row td{background:#FAF7FF!important}
+tr.rollover-row:hover td{background:#F3EEF9!important}
+/* ---- MOBILE ---- */
 @media(max-width:700px){
   .mob-amount{display:block!important}
   .mob-badges{display:flex!important;gap:4px;margin-top:3px;flex-wrap:wrap}
@@ -134,11 +150,25 @@ tr.drag-over td{border-top:2.5px solid #378ADD!important}
   .cards{grid-template-columns:repeat(2,1fr)!important}
   .add-grid{grid-template-columns:1fr 1fr}
   .chart-wrap{padding:.75rem .5rem}
+  /* capacity table mobile */
+  .cap-tbl th:nth-child(2),.cap-tbl td:nth-child(2){display:none!important}
+  .cap-tbl th:nth-child(5),.cap-tbl td:nth-child(5){display:none!important}
 }
 </style>
 </head>
 <body>
 <div class="container">
+
+<!-- TAB BAR -->
+<div class="tab-bar">
+  <button class="tab-btn active" id="tabBtnCashflow" onclick="switchTab('cashflow')">💰 Cashflow</button>
+  <button class="tab-btn" id="tabBtnCapacity" onclick="switchTab('capacity')">📊 Capacity</button>
+</div>
+
+<!-- ============================================================ -->
+<!--  CASHFLOW SECTION                                            -->
+<!-- ============================================================ -->
+<div id="cashflow-section">
 
 <div class="hdr">
   <div>
@@ -230,17 +260,111 @@ tr.drag-over td{border-top:2.5px solid #378ADD!important}
   </div>
 </div>
 
-<div style="font-size:11px;color:#bbb;text-align:center;padding-bottom:1rem">GYM&GO Cashflow Dashboard · Date salvate local în browser</div>
+<div style="font-size:11px;color:#bbb;text-align:center;padding-bottom:1rem">GYM&GO Cashflow Dashboard · Date salvate în cloud</div>
 
+</div><!-- end cashflow-section -->
+
+<!-- ============================================================ -->
+<!--  CAPACITY SECTION                                            -->
+<!-- ============================================================ -->
+<div id="capacity-section" style="display:none">
+
+<div class="hdr">
+  <div>
+    <div class="hdr-title">GYM&amp;GO — Capacity</div>
+    <div class="hdr-sub" id="capHdrSub">Abonamente active · 12 sloturi/zi</div>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button class="export-btn" onclick="showCapAddForm()" style="background:#EAF3DE;border-color:#1D9E75;color:#0F6E56;font-weight:600">+ Client nou</button>
+    <button class="export-btn" id="btnDuplicate" onclick="duplicateFromPrevMonth()">↩ Duplică din <span id="dupFromLbl">luna anterioară</span></button>
+  </div>
 </div>
+
+<!-- Month tabs -->
+<div class="month-tabs" id="capMonthTabs">
+  <button class="month-tab" onclick="setCapMonth('2026-04',this)">Aprilie</button>
+  <button class="month-tab active" onclick="setCapMonth('2026-05',this)">Mai</button>
+  <button class="month-tab" onclick="setCapMonth('2026-06',this)">Iunie</button>
+  <button class="month-tab" onclick="setCapMonth('2026-07',this)">Iulie</button>
+</div>
+
+<!-- Summary cards -->
+<div class="cards">
+  <div class="card"><div class="card-lbl">Clienți luna aceasta</div><div class="card-val blue" id="capActiveClients">—</div></div>
+  <div class="card"><div class="card-lbl">Sesiuni luna aceasta</div><div class="card-val" id="capTotalSessions">—</div></div>
+  <div class="card"><div class="card-lbl">Ocupare medie/zi</div><div class="card-val" id="capAvgFill">—</div></div>
+  <div class="card"><div class="card-lbl">Venit abonamente</div><div class="card-val green" id="capRevenue">—</div></div>
+</div>
+
+<!-- Fill bar -->
+<div class="cap-fill-bar-wrap">
+  <div style="display:flex;justify-content:space-between;font-size:12px;color:#888;margin-bottom:6px">
+    <span>Ocupare lunară (sesiuni utilizate vs. capacitate totală)</span>
+    <span id="capFillPct" style="font-weight:600;color:#1a1a18">—</span>
+  </div>
+  <div class="cap-fill-track"><div class="cap-fill-bar" id="capFillBar" style="width:0%"></div></div>
+</div>
+
+
+<!-- Member table -->
+<div class="tbl-wrap">
+<table class="cap-tbl">
+<thead>
+<tr>
+  <th>Nume</th>
+  <th>Data start</th>
+  <th class="num">Sesiuni</th>
+  <th class="num">Sesiuni luna aceasta</th>
+  <th class="num">Rollover →</th>
+  <th class="num">Preț</th>
+  <th style="width:40px"></th>
+</tr>
+</thead>
+<tbody id="capTblBody"></tbody>
+</table>
+</div>
+
+<!-- Add member form -->
+<div class="add-section" id="capAddSection" style="display:none;margin-bottom:1.2rem">
+  <div class="add-title">+ Client nou</div>
+  <div class="add-grid">
+    <div><label>Nume</label><input type="text" id="capNewName" placeholder="ex: DIANA"></div>
+    <div><label>Data start abonament</label><input type="date" id="capNewStart"></div>
+    <div><label>Sesiuni/lună</label><select id="capNewSessions">
+      <option value="8">8 sesiuni</option>
+      <option value="11">11 sesiuni</option>
+      <option value="12">12 sesiuni</option>
+      <option value="16">16 sesiuni</option>
+      <option value="20">20 sesiuni</option>
+      <option value="30">30 sesiuni (full-time)</option>
+    </select></div>
+    <div><label>Preț (RON)</label><input type="number" id="capNewPrice" min="0" step="1" placeholder="399"></div>
+    <div style="display:flex;align-items:flex-end;gap:6px">
+      <button class="add-btn" onclick="addMember()">✓ Adaugă</button>
+      <button class="cancel-btn" onclick="document.getElementById('capAddSection').style.display='none'">✕</button>
+    </div>
+  </div>
+</div>
+
+<div style="font-size:11px;color:#bbb;text-align:center;padding-bottom:1rem">GYM&GO Capacity Dashboard · Rollover calculat automat pe 30 zile</div>
+
+</div><!-- end capacity-section -->
+
+</div><!-- end container -->
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
+// ================================================================
+//  SHARED CONFIG
+// ================================================================
 const LIMITA=9500, SOLD_INITIAL=18350;
 const STORAGE_KEY='gymgo_rows_v2';
 const RTDB='https://gymgo-b752c-default-rtdb.europe-west1.firebasedatabase.app';
-let filterSala='all', filterTip='all', filterMonth='all';
+const MONTH_NAMES={'01':'Ianuarie','02':'Februarie','03':'Martie','04':'Aprilie','05':'Mai','06':'Iunie','07':'Iulie','08':'August','09':'Septembrie','10':'Octombrie','11':'Noiembrie','12':'Decembrie'};
 
+// ================================================================
+//  FIREBASE HELPERS
+// ================================================================
 async function dbLoad(){
   const res=await fetch(RTDB+'/cashflow.json');
   if(!res.ok) throw new Error('load failed');
@@ -249,7 +373,18 @@ async function dbLoad(){
 async function dbSave(){
   await fetch(RTDB+'/cashflow.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(rows.map(r=>({data:r.data,desc:r.desc,sala:r.sala,tip:r.tip,val:r.val,soldOverride:r.soldOverride??null})))});
 }
+async function capDbLoad(){
+  const res=await fetch(RTDB+'/capacity.json');
+  if(!res.ok) throw new Error('cap load failed');
+  return await res.json();
+}
+async function capDbSave(){
+  await fetch(RTDB+'/capacity.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(capacityData)});
+}
 
+// ================================================================
+//  CASHFLOW DATA
+// ================================================================
 const defaultRows=[
   {data:'2026-04-23',desc:'PAL Oglinzi',sala:'Sala 2',tip:'Cheltuiala',val:813},
   {data:'2026-04-23',desc:'Sistem Oglinzi Feroshop',sala:'Sala 2',tip:'Cheltuiala',val:292},
@@ -398,9 +533,93 @@ const defaultRows=[
   {data:'2026-07-30',desc:'Website',sala:'Comun',tip:'Cheltuiala',val:122},
 ];
 
+// ================================================================
+//  CAPACITY DEFAULT DATA  (74 memberships: Apr + May + Jun)
+// ================================================================
+const defaultCapacity=[
+  {id:1,name:'IVONNA',startDate:'2026-04-01',sessions:0,price:200},
+  {id:2,name:'KIRA',startDate:'2026-04-01',sessions:8,price:0},
+  {id:3,name:'DARIANA',startDate:'2026-04-01',sessions:8,price:0},
+  {id:4,name:'AOUDE',startDate:'2026-04-03',sessions:12,price:299},
+  {id:5,name:'PITA',startDate:'2026-04-04',sessions:8,price:999},
+  {id:6,name:'VIRGINIA',startDate:'2026-04-09',sessions:8,price:399},
+  {id:7,name:'ROXANA ANDREEA',startDate:'2026-04-12',sessions:10,price:599},
+  {id:8,name:'EDI',startDate:'2026-04-13',sessions:10,price:460},
+  {id:9,name:'ORNELA',startDate:'2026-04-14',sessions:8,price:199},
+  {id:10,name:'MARINELA',startDate:'2026-04-15',sessions:8,price:379},
+  {id:11,name:'TURKISH',startDate:'2026-04-17',sessions:8,price:1200},
+  {id:12,name:'MARINA',startDate:'2026-04-17',sessions:12,price:499},
+  {id:13,name:'SOFIA',startDate:'2026-04-18',sessions:8,price:399},
+  {id:14,name:'SOENDER',startDate:'2026-04-19',sessions:12,price:1099},
+  {id:15,name:'ANTONOVICI',startDate:'2026-04-20',sessions:8,price:399},
+  {id:16,name:'GEORGIANA',startDate:'2026-04-21',sessions:8,price:399},
+  {id:17,name:'GABRIELA',startDate:'2026-04-22',sessions:12,price:399},
+  {id:18,name:'DIANA',startDate:'2026-04-25',sessions:8,price:359},
+  {id:19,name:'BIANCA',startDate:'2026-04-25',sessions:8,price:399},
+  {id:20,name:'MIHNEA',startDate:'2026-04-26',sessions:8,price:799},
+  {id:21,name:'ILINCA 2',startDate:'2026-04-27',sessions:20,price:599},
+  {id:22,name:'ANDREEA',startDate:'2026-04-27',sessions:20,price:599},
+  {id:23,name:'ILINCA',startDate:'2026-04-28',sessions:8,price:379},
+  {id:24,name:'CELA',startDate:'2026-04-30',sessions:20,price:499},
+  {id:25,name:'LUSIANA',startDate:'2026-04-30',sessions:8,price:379},
+  {id:26,name:'MELISSA',startDate:'2026-04-30',sessions:8,price:399},
+  {id:27,name:'KIRA',startDate:'2026-05-01',sessions:8,price:0},
+  {id:28,name:'DARIANA',startDate:'2026-05-01',sessions:8,price:0},
+  {id:29,name:'AOUDE',startDate:'2026-05-03',sessions:12,price:299},
+  {id:30,name:'PITA',startDate:'2026-05-04',sessions:8,price:999},
+  {id:31,name:'VIRGINIA',startDate:'2026-05-09',sessions:8,price:399},
+  {id:32,name:'ORNELA',startDate:'2026-05-14',sessions:8,price:199},
+  {id:33,name:'MARINELA',startDate:'2026-05-15',sessions:8,price:379},
+  {id:34,name:'TURKISH',startDate:'2026-05-17',sessions:8,price:1200},
+  {id:35,name:'SOFIA',startDate:'2026-05-18',sessions:8,price:399},
+  {id:36,name:'SOENDER',startDate:'2026-05-19',sessions:12,price:1099},
+  {id:37,name:'GEORGIANA',startDate:'2026-05-21',sessions:8,price:399},
+  {id:38,name:'GABRIELA',startDate:'2026-05-22',sessions:12,price:399},
+  {id:39,name:'DIANA',startDate:'2026-05-25',sessions:8,price:359},
+  {id:40,name:'BIANCA',startDate:'2026-05-25',sessions:8,price:599},
+  {id:41,name:'MIHNEA',startDate:'2026-05-26',sessions:8,price:799},
+  {id:42,name:'ILINCA 2',startDate:'2026-05-27',sessions:20,price:599},
+  {id:43,name:'ANDREEA',startDate:'2026-05-27',sessions:20,price:599},
+  {id:44,name:'ILINCA',startDate:'2026-05-28',sessions:8,price:379},
+  {id:45,name:'CELA',startDate:'2026-05-30',sessions:20,price:499},
+  {id:46,name:'LUSIANA',startDate:'2026-05-30',sessions:8,price:379},
+  {id:47,name:'MELISSA',startDate:'2026-05-30',sessions:8,price:399},
+  {id:48,name:'ROXANA P',startDate:'2026-05-05',sessions:11,price:450},
+  {id:49,name:'EMA',startDate:'2026-05-05',sessions:16,price:499},
+  {id:50,name:'IRINA',startDate:'2026-05-16',sessions:8,price:399},
+  {id:51,name:'KIRA',startDate:'2026-06-01',sessions:8,price:0},
+  {id:52,name:'DARIANA',startDate:'2026-06-01',sessions:8,price:0},
+  {id:53,name:'AOUDE',startDate:'2026-06-03',sessions:12,price:299},
+  {id:54,name:'PITA',startDate:'2026-06-04',sessions:8,price:999},
+  {id:55,name:'VIRGINIA',startDate:'2026-06-09',sessions:8,price:399},
+  {id:56,name:'ORNELA',startDate:'2026-06-14',sessions:8,price:199},
+  {id:57,name:'MARINELA',startDate:'2026-06-15',sessions:8,price:379},
+  {id:58,name:'TURKISH',startDate:'2026-06-17',sessions:8,price:1200},
+  {id:59,name:'SOFIA',startDate:'2026-06-18',sessions:8,price:399},
+  {id:60,name:'SOENDER',startDate:'2026-06-19',sessions:12,price:1099},
+  {id:61,name:'GEORGIANA',startDate:'2026-06-21',sessions:8,price:399},
+  {id:62,name:'GABRIELA',startDate:'2026-06-22',sessions:12,price:399},
+  {id:63,name:'DIANA',startDate:'2026-06-25',sessions:8,price:359},
+  {id:64,name:'BIANCA',startDate:'2026-06-25',sessions:8,price:599},
+  {id:65,name:'MIHNEA',startDate:'2026-06-26',sessions:8,price:799},
+  {id:66,name:'ILINCA 2',startDate:'2026-06-27',sessions:20,price:599},
+  {id:67,name:'ANDREEA',startDate:'2026-06-27',sessions:20,price:599},
+  {id:68,name:'ILINCA',startDate:'2026-06-28',sessions:8,price:379},
+  {id:69,name:'CELA',startDate:'2026-06-30',sessions:20,price:499},
+  {id:70,name:'LUSIANA',startDate:'2026-06-30',sessions:8,price:379},
+  {id:71,name:'MELISSA',startDate:'2026-06-30',sessions:8,price:399},
+  {id:72,name:'ROXANA P',startDate:'2026-06-05',sessions:11,price:450},
+  {id:73,name:'EMA',startDate:'2026-06-05',sessions:16,price:499},
+  {id:74,name:'IRINA',startDate:'2026-06-16',sessions:8,price:399},
+];
+
+// ================================================================
+//  CASHFLOW STATE & HELPERS
+// ================================================================
 const undoStack=[];
 const MAX_UNDO=30;
 let rows=[];
+let filterSala='all', filterTip='all', filterMonth='all';
 
 function snapshot(){
   undoStack.push(JSON.stringify(rows));
@@ -408,7 +627,6 @@ function snapshot(){
   const btn=document.getElementById('btnUndo');
   if(btn){btn.disabled=false;btn.style.opacity='1';btn.style.cursor='pointer';btn.title='Ctrl+Z — '+undoStack.length+' acțiuni în istoric';}
 }
-
 async function undo(){
   if(!undoStack.length) return;
   rows=JSON.parse(undoStack.pop());
@@ -423,24 +641,16 @@ async function undo(){
     setTimeout(()=>{btn.innerHTML='<i class="ti ti-arrow-back-up"></i> Undo';},1200);
   }
 }
-
 function ron(n){return Number(n).toLocaleString('ro-RO',{minimumFractionDigits:0,maximumFractionDigits:0})+' RON'}
-
 function recompute(){
   let sold=SOLD_INITIAL;
   rows.forEach(r=>{
-    if(r.soldOverride!=null){
-      sold=r.soldOverride;
-    } else {
-      if(r.tip==='Incasare') sold+=r.val;
-      else if(r.tip==='Cheltuiala') sold-=r.val;
-      else sold+=r.val;
-    }
+    if(r.soldOverride!=null){sold=r.soldOverride;}
+    else{if(r.tip==='Incasare') sold+=r.val;else if(r.tip==='Cheltuiala') sold-=r.val;else sold+=r.val;}
     r.sold=sold;
   });
   return sold;
 }
-
 function updateCards(){
   let totalIn=0,totalOut=0,totalInj=0,finalSold=recompute();
   rows.forEach(r=>{
@@ -456,9 +666,7 @@ function updateCards(){
   document.getElementById('totalInj').textContent=ron(totalInj);
   document.getElementById('warnBar').style.display=finalSold<LIMITA?'flex':'none';
 }
-
 function monthKey(d){return d.substring(5,7)}
-
 const todayStr=new Date().toISOString().split('T')[0];
 
 function renderTable(){
@@ -554,7 +762,6 @@ function startEdit(idx){
   inp.focus();inp.select();
   inp.addEventListener('keydown',e=>{if(e.key==='Enter')saveEdit(idx);if(e.key==='Escape')renderTable();});
 }
-
 async function saveEdit(idx){
   const inp=document.getElementById('edit-input-'+idx);
   const newVal=parseFloat(inp.value);
@@ -566,7 +773,6 @@ async function saveEdit(idx){
   updateCards();
   renderTable();
 }
-
 function startSoldEdit(idx){
   const cell=document.getElementById('cell-sold-'+idx);
   if(!cell) return;
@@ -580,7 +786,6 @@ function startSoldEdit(idx){
   inp.focus();inp.select();
   inp.addEventListener('keydown',e=>{if(e.key==='Enter')saveSoldEdit(idx);if(e.key==='Escape')renderTable();});
 }
-
 async function saveSoldEdit(idx){
   const inp=document.getElementById('sold-input-'+idx);
   const newSold=parseFloat(inp.value);
@@ -598,7 +803,6 @@ async function saveSoldEdit(idx){
   updateCards();
   renderTable();
 }
-
 async function clearSoldOverride(idx){
   if(!confirm('Resetezi soldul la valoarea calculată automat din formulă?')) return;
   snapshot();
@@ -625,7 +829,7 @@ function renderChart(){
       plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>'Sold: '+ron(c.raw)}}},
       scales:{
         x:{ticks:{font:{size:10},maxRotation:45,autoSkip:true,maxTicksLimit:24},grid:{display:false}},
-        y:{ticks:{callback:v=>v.toLocaleString('ro-RO')+ ' RON',font:{size:10}},grid:{color:'rgba(0,0,0,0.05)'}}
+        y:{ticks:{callback:v=>v.toLocaleString('ro-RO')+' RON',font:{size:10}},grid:{color:'rgba(0,0,0,0.05)'}}
       }
     }
   });
@@ -684,7 +888,7 @@ function exportCSV(){
     const injV=r.tip==='Injectie'?r.val:'';
     return [r.data,'"'+r.desc+'"',r.sala,r.tip,inV,outV,injV,r.sold].join(',');
   }).join('\n');
-  const blob=new Blob(['\uFEFF'+hdr+'\n'+body],{type:'text/csv;charset=utf-8'});
+  const blob=new Blob(['﻿'+hdr+'\n'+body],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download='GymGo_Cashflow_'+new Date().toISOString().slice(0,10)+'.csv';
   a.click();
@@ -702,18 +906,14 @@ function scrollToToday(){
   renderTable();
   requestAnimationFrame(()=>{
     requestAnimationFrame(()=>{
-      // First try exact today
       let target=document.querySelector('tr.today-row');
       if(!target){
-        // Find closest row to today (last row with date <= today)
         const allTrs=[...document.querySelectorAll('#tblBody tr[data-idx]')];
-        let closest=null;
-        let closestDiff=Infinity;
+        let closest=null,closestDiff=Infinity;
         const todayTime=new Date(todayStr).getTime();
         allTrs.forEach(tr=>{
           const idx=parseInt(tr.dataset.idx);
-          const rowTime=new Date(rows[idx].data).getTime();
-          const diff=Math.abs(todayTime-rowTime);
+          const diff=Math.abs(todayTime-new Date(rows[idx].data).getTime());
           if(diff<closestDiff){closestDiff=diff;closest=tr;}
         });
         target=closest;
@@ -721,13 +921,13 @@ function scrollToToday(){
       if(target){
         target.scrollIntoView({behavior:'smooth',block:'center'});
         target.style.outline='3px solid #378ADD';
-        target.style.outlineOffset='0px';
         setTimeout(()=>{target.style.outline='';},2500);
       }
     });
   });
 }
 
+// ---- DRAG & DROP (desktop) ----
 let dragSrcIdx=null;
 let touchSrcIdx=null,touchActive=false,touchTimer=null,touchStartX=0,touchStartY=0;
 
@@ -766,10 +966,7 @@ function addTouchDrag(tr){
     const tgt=el?.closest('tr[data-idx]');
     document.querySelectorAll('tr.drag-over').forEach(r=>r.classList.remove('drag-over'));
     document.querySelectorAll('tr.dragging').forEach(r=>r.classList.remove('dragging'));
-    if(tgt){
-      const ti=parseInt(tgt.dataset.idx);
-      if(ti!==touchSrcIdx)showDatePopup(rows[touchSrcIdx],rows[ti].data);
-    }
+    if(tgt){const ti=parseInt(tgt.dataset.idx);if(ti!==touchSrcIdx)showDatePopup(rows[touchSrcIdx],rows[ti].data);}
     touchSrcIdx=null;
   },{passive:true});
   tr.addEventListener('touchcancel',function(){
@@ -779,37 +976,18 @@ function addTouchDrag(tr){
     touchSrcIdx=null;
   },{passive:true});
 }
-
-function onDragStart(e){
-  dragSrcIdx=parseInt(this.dataset.idx);
-  this.classList.add('dragging');
-  e.dataTransfer.effectAllowed='move';
-}
-function onDragOver(e){
-  e.preventDefault();
-  e.dataTransfer.dropEffect='move';
-  document.querySelectorAll('tr.drag-over').forEach(r=>r.classList.remove('drag-over'));
-  this.classList.add('drag-over');
-}
-function onDragLeave(){
-  this.classList.remove('drag-over');
-}
-function onDragEnd(){
-  document.querySelectorAll('tr.dragging').forEach(r=>r.classList.remove('dragging'));
-  document.querySelectorAll('tr.drag-over').forEach(r=>r.classList.remove('drag-over'));
-}
+function onDragStart(e){dragSrcIdx=parseInt(this.dataset.idx);this.classList.add('dragging');e.dataTransfer.effectAllowed='move';}
+function onDragOver(e){e.preventDefault();e.dataTransfer.dropEffect='move';document.querySelectorAll('tr.drag-over').forEach(r=>r.classList.remove('drag-over'));this.classList.add('drag-over');}
+function onDragLeave(){this.classList.remove('drag-over');}
+function onDragEnd(){document.querySelectorAll('tr.dragging').forEach(r=>r.classList.remove('dragging'));document.querySelectorAll('tr.drag-over').forEach(r=>r.classList.remove('drag-over'));}
 function onDrop(e){
   e.preventDefault();
   const targetIdx=parseInt(this.dataset.idx);
   document.querySelectorAll('tr.drag-over').forEach(r=>r.classList.remove('drag-over'));
   document.querySelectorAll('tr.dragging').forEach(r=>r.classList.remove('dragging'));
   if(dragSrcIdx==null||dragSrcIdx===targetIdx) return;
-  const srcRow=rows[dragSrcIdx];
-  const targetRow=rows[targetIdx];
-  // Show date picker popup — default to target row's date
-  showDatePopup(srcRow, targetRow.data);
+  showDatePopup(rows[dragSrcIdx], rows[targetIdx].data);
 }
-
 function showDatePopup(srcRow, suggestedDate){
   const overlay=document.createElement('div');
   overlay.className='date-popup-overlay';
@@ -824,14 +1002,12 @@ function showDatePopup(srcRow, suggestedDate){
         <button class="btn-confirm" onclick="confirmDateChange()">Mută tranzacția</button>
       </div>
     </div>`;
-  overlay.querySelector('.date-popup-overlay') && overlay.addEventListener('click',e=>{if(e.target===overlay)document.body.removeChild(overlay);});
   overlay.addEventListener('click',e=>{if(e.target===overlay)document.body.removeChild(overlay);});
   overlay._srcRow=srcRow;
   document.body.appendChild(overlay);
   document.getElementById('newDatePicker').focus();
   document.getElementById('newDatePicker').addEventListener('keydown',e=>{if(e.key==='Enter')confirmDateChange();if(e.key==='Escape')document.body.removeChild(overlay);});
 }
-
 async function confirmDateChange(){
   const overlay=document.querySelector('.date-popup-overlay');
   if(!overlay) return;
@@ -851,29 +1027,280 @@ async function confirmDateChange(){
     if(moved){moved.scrollIntoView({behavior:'smooth',block:'center'});moved.style.outline='3px solid #378ADD';setTimeout(()=>{moved.style.outline='';},2000);}
   },150);
 }
-
 document.addEventListener('keydown',e=>{
   if((e.ctrlKey||e.metaKey)&&e.key==='z'&&!e.shiftKey){e.preventDefault();undo();}
 });
 
+// ================================================================
+//  CAPACITY MODULE
+// ================================================================
+const CAP_SLOTS=12;
+let capacityData=[];
+let capMonth='2026-05';
+let capChartInst=null;
+let capNextId=200;
+
+function daysInMonth(ym){
+  const [y,m]=ym.split('-').map(Number);
+  return new Date(y,m,0).getDate();
+}
+
+function sessionsOnDay(mb, dayStr){
+  const start=new Date(mb.startDate+'T00:00:00');
+  const end=new Date(start);
+  end.setDate(end.getDate()+29);
+  const day=new Date(dayStr+'T00:00:00');
+  return(day>=start&&day<=end)?mb.sessions/30:0;
+}
+
+function getMembershipsForMonth(ym){
+  const [y,m]=ym.split('-').map(Number);
+  const mStart=new Date(y,m-1,1);
+  const mEnd=new Date(y,m,0);
+  return capacityData.filter(mb=>{
+    const s=new Date(mb.startDate+'T00:00:00');
+    const e=new Date(s);
+    e.setDate(e.getDate()+29);
+    return s<=mEnd&&e>=mStart;
+  });
+}
+
+function calcDailyLoad(ym){
+  const days=daysInMonth(ym);
+  const mbs=getMembershipsForMonth(ym);
+  const load=[];
+  for(let d=1;d<=days;d++){
+    const dayStr=ym+'-'+String(d).padStart(2,'0');
+    let sum=0;
+    mbs.forEach(mb=>{sum+=sessionsOnDay(mb,dayStr);});
+    load.push(sum);
+  }
+  return load;
+}
+
+function sessionsInMonth(mb, ym){
+  const days=daysInMonth(ym);
+  let total=0;
+  for(let d=1;d<=days;d++){
+    total+=sessionsOnDay(mb,ym+'-'+String(d).padStart(2,'0'));
+  }
+  return total;
+}
+
+function sessionsRollover(mb, ym){
+  const [y,m]=ym.split('-').map(Number);
+  const nm=m===12?1:m+1;
+  const ny=m===12?y+1:y;
+  const nextYm=String(ny)+'-'+String(nm).padStart(2,'0');
+  return sessionsInMonth(mb,nextYm);
+}
+
+function setCapMonth(ym, btn){
+  capMonth=ym;
+  document.querySelectorAll('#capMonthTabs .month-tab').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  else{
+    const el=document.getElementById('capTab-'+ym);
+    if(el) el.classList.add('active');
+  }
+  updateDupLabel();
+  renderCapacity();
+}
+
+function updateDupLabel(){
+  const [y,m]=capMonth.split('-').map(Number);
+  const pm=m===1?12:m-1;
+  const py=m===1?y-1:y;
+  const prevYm=String(py)+'-'+String(pm).padStart(2,'0');
+  const lbl=MONTH_NAMES[String(pm).padStart(2,'0')]||prevYm;
+  document.getElementById('dupFromLbl').textContent=lbl;
+}
+
+function renderCapacity(){
+  const [y,mo]=capMonth.split('-').map(Number);
+  const days=daysInMonth(capMonth);
+  const mStart=new Date(y,mo-1,1);
+  const mEnd=new Date(y,mo,0);
+  const allMbs=getMembershipsForMonth(capMonth);
+  const dailyLoad=calcDailyLoad(capMonth);
+
+  // Cards — active clients = those who have a membership that STARTS in this calendar month
+  const startedThisMonth=capacityData.filter(mb=>{
+    const s=new Date(mb.startDate+'T00:00:00');
+    return s>=mStart&&s<=mEnd;
+  });
+  document.getElementById('capActiveClients').textContent=startedThisMonth.length;
+
+  const totalSessions=allMbs.reduce((sum,mb)=>sum+sessionsInMonth(mb,capMonth),0);
+  document.getElementById('capTotalSessions').textContent=totalSessions.toFixed(1)+' ses';
+
+  const maxSlots=CAP_SLOTS*days;
+  const pct=Math.round(totalSessions/maxSlots*100);
+  const avgLoad=(totalSessions/days);
+  const avgColor=avgLoad>CAP_SLOTS*0.9?'red':avgLoad>CAP_SLOTS*0.7?'orange':'';
+  document.getElementById('capAvgFill').textContent=avgLoad.toFixed(1)+' / '+CAP_SLOTS;
+  document.getElementById('capAvgFill').className='card-val '+(avgColor||'blue');
+
+  const revenue=startedThisMonth.reduce((sum,mb)=>sum+mb.price,0);
+  document.getElementById('capRevenue').textContent=revenue.toLocaleString('ro-RO')+' RON';
+
+  // Fill bar
+  document.getElementById('capFillPct').textContent=pct+'%';
+  const bar=document.getElementById('capFillBar');
+  bar.style.width=Math.min(pct,100)+'%';
+  bar.style.background=pct>90?'#E24B4A':pct>70?'#EF9F27':'#1D9E75';
+
+
+  // Member table
+  const tbody=document.getElementById('capTblBody');
+  tbody.innerHTML='';
+  const sorted=[...allMbs].sort((a,b)=>a.startDate.localeCompare(b.startDate));
+
+  sorted.forEach(mb=>{
+    const sInM=sessionsInMonth(mb,capMonth);
+    const sInMRounded=Math.floor(sInM);
+    const rollover=mb.sessions-sInMRounded;
+    const s=new Date(mb.startDate+'T00:00:00');
+    const isRollover=s<mStart;
+    const dStr=mb.startDate.split('-').reverse().join('.');
+    const tr=document.createElement('tr');
+    if(isRollover) tr.className='rollover-row';
+    tr.innerHTML=`
+      <td><strong>${mb.name}</strong>${isRollover?'<span class="rollover-badge">rollover</span>':''}</td>
+      <td style="color:#888;font-size:12px;white-space:nowrap">${dStr}</td>
+      <td class="num"><span class="ses-badge">${mb.sessions>0?mb.sessions+' ses':'—'}</span></td>
+      <td class="num" style="font-weight:600">${sInMRounded}</td>
+      <td class="num" style="color:${rollover>0?'#7B5EA7':'#bbb'}">${rollover>0?rollover:'—'}</td>
+      <td class="num">${mb.price>0?mb.price.toLocaleString('ro-RO')+' RON':'<span style="color:#bbb">gratuit</span>'}</td>
+      <td><button class="del-btn" onclick="deleteMember(${mb.id})" title="Șterge abonamentul">🗑</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  if(!sorted.length) tbody.innerHTML='<tr><td colspan="7" class="empty-row">Niciun abonament activ în această lună.</td></tr>';
+
+  // Update sub-header
+  const mn=MONTH_NAMES[capMonth.split('-')[1]]||capMonth;
+  document.getElementById('capHdrSub').textContent=mn+' 2026 · '+startedThisMonth.length+' clienți activi · '+pct+'% ocupare';
+}
+
+function showCapAddForm(){
+  const sec=document.getElementById('capAddSection');
+  sec.style.display=sec.style.display==='none'?'block':'none';
+  if(sec.style.display==='block'){
+    document.getElementById('capNewStart').value=capMonth+'-01';
+    document.getElementById('capNewName').focus();
+  }
+}
+
+async function addMember(){
+  const name=document.getElementById('capNewName').value.trim().toUpperCase();
+  const startDate=document.getElementById('capNewStart').value;
+  const sessions=parseInt(document.getElementById('capNewSessions').value);
+  const price=parseInt(document.getElementById('capNewPrice').value)||0;
+  if(!name||!startDate){alert('Completează numele și data de start.');return;}
+  capNextId++;
+  capacityData.push({id:capNextId,name,startDate,sessions,price});
+  capacityData.sort((a,b)=>a.startDate.localeCompare(b.startDate));
+  await capDbSave();
+  document.getElementById('capAddSection').style.display='none';
+  document.getElementById('capNewName').value='';
+  document.getElementById('capNewPrice').value='';
+  renderCapacity();
+}
+
+async function deleteMember(id){
+  const mb=capacityData.find(m=>m.id===id);
+  if(!mb||!confirm('Ștergi abonamentul lui '+mb.name+'?')) return;
+  capacityData=capacityData.filter(m=>m.id!==id);
+  await capDbSave();
+  renderCapacity();
+}
+
+async function duplicateFromPrevMonth(){
+  const [y,m]=capMonth.split('-').map(Number);
+  const pm=m===1?12:m-1;
+  const py=m===1?y-1:y;
+  const prevYm=String(py)+'-'+String(pm).padStart(2,'0');
+  const prevMbs=capacityData.filter(mb=>mb.startDate.startsWith(prevYm));
+
+  if(!prevMbs.length){
+    alert('Nu există abonamente care au început în '+prevYm+'.');
+    return;
+  }
+  const mName=MONTH_NAMES[String(m).padStart(2,'0')]||capMonth;
+  const pName=MONTH_NAMES[String(pm).padStart(2,'0')]||prevYm;
+  if(!confirm(`Duplici ${prevMbs.length} abonamente din ${pName} în ${mName}?\n\nData de start se mută cu +1 lună. Poți șterge ulterior clienții care nu au reînnoit.`)) return;
+
+  let added=0;
+  prevMbs.forEach(mb=>{
+    const [sy,sm,sd]=mb.startDate.split('-').map(Number);
+    const nm2=sm===12?1:sm+1;
+    const ny2=sm===12?sy+1:sy;
+    const daysInNM=new Date(ny2,nm2,0).getDate();
+    const nd=Math.min(sd,daysInNM);
+    const newStart=String(ny2)+'-'+String(nm2).padStart(2,'0')+'-'+String(nd).padStart(2,'0');
+    const exists=capacityData.some(m=>m.name===mb.name&&m.startDate===newStart);
+    if(!exists){
+      capNextId++;
+      capacityData.push({id:capNextId,name:mb.name,startDate:newStart,sessions:mb.sessions,price:mb.price});
+      added++;
+    }
+  });
+
+  if(added===0){alert('Toate abonamentele există deja în '+mName+'.');return;}
+  capacityData.sort((a,b)=>a.startDate.localeCompare(b.startDate));
+  await capDbSave();
+  renderCapacity();
+  alert(`✓ ${added} abonamente duplicate în ${mName}. Verifică lista și șterge clienții care nu au reînnoit.`);
+}
+
+// ================================================================
+//  TAB SWITCHING
+// ================================================================
+function switchTab(tab){
+  document.getElementById('cashflow-section').style.display=tab==='cashflow'?'block':'none';
+  document.getElementById('capacity-section').style.display=tab==='capacity'?'block':'none';
+  document.getElementById('tabBtnCashflow').classList.toggle('active',tab==='cashflow');
+  document.getElementById('tabBtnCapacity').classList.toggle('active',tab==='capacity');
+  if(tab==='capacity') renderCapacity();
+}
+
+// ================================================================
+//  INIT
+// ================================================================
 async function init(){
-  document.getElementById('tblBody').innerHTML='<tr><td colspan="9" class="empty-row" style="color:#888"><i class="ti ti-cloud-download" style="margin-right:6px"></i>Se încarcă datele din cloud…</td></tr>';
+  document.getElementById('tblBody').innerHTML='<tr><td colspan="9" class="empty-row" style="color:#888">Se încarcă datele din cloud…</td></tr>';
   try{
-    const data=await dbLoad();
-    if(data&&data.length>0){
-      rows=data.map(r=>({...r,sold:0}));
+    const [cfData, capData]=await Promise.all([
+      fetch(RTDB+'/cashflow.json').then(r=>r.json()),
+      fetch(RTDB+'/capacity.json').then(r=>r.json())
+    ]);
+    if(cfData&&cfData.length>0){
+      rows=cfData.map(r=>({...r,sold:0}));
     } else {
       rows=defaultRows.map(r=>({...r,sold:0}));
       await dbSave();
     }
+    if(capData&&capData.length>0){
+      capacityData=capData;
+    } else {
+      capacityData=defaultCapacity.map(m=>({...m}));
+      await capDbSave();
+    }
+    capNextId=Math.max(...capacityData.map(m=>m.id),200)+1;
   }catch(e){
     console.error('Firebase error:',e);
     const local=localStorage.getItem(STORAGE_KEY);
     rows=local?JSON.parse(local):[...defaultRows];
+    capacityData=defaultCapacity.map(m=>({...m}));
   }
+
   document.getElementById('newData').value=todayStr;
+  updateDupLabel();
   updateCards();
   renderTable();
+
   setTimeout(()=>{
     const todayRow=document.querySelector('tr.today-row');
     if(todayRow){todayRow.scrollIntoView({behavior:'smooth',block:'center'});}
