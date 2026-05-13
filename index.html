@@ -84,6 +84,11 @@ tr.cheltuiala-row td{background:#FFF0F0!important}
 tr.cheltuiala-row td.sold-col{background:#ffd6d6!important}
 tr.cheltuiala-row:hover td{background:#ffe0e0!important}
 tr.cheltuiala-row:hover td.sold-col{background:#ffc8c8!important}
+tr.recurring-row td{background:#FFF8EE!important;border-left:3px solid #EF9F27}
+tr.recurring-row td.sold-col{background:#FFEFD4!important}
+tr.recurring-row:hover td{background:#FFEEDD!important}
+tr.recurring-row:hover td.sold-col{background:#FFE4C0!important}
+.recurring-badge{font-size:10px;background:#FAEEDA;color:#854F0B;border-radius:4px;padding:1px 5px;margin-left:5px;font-weight:600}
 tr.today-row td.sold-col{background:#f0e96a!important}
 tr.today-row td{background:#EAF3DE!important;border-left:3px solid #1D9E75}
 tr.today-row:hover td{background:#d8edc7!important}
@@ -220,12 +225,16 @@ tr.rollover-row:hover td{background:#F3EEF9!important}
     <div><label>Data</label><input type="date" id="newData"></div>
     <div><label>Descriere</label><input type="text" id="newDesc" placeholder="ex: Chirie"></div>
     <div><label>Sală</label><select id="newSala"><option>Sala 1</option><option>Sala 2</option><option>Comun</option></select></div>
-    <div><label>Tip</label><select id="newTip">
+    <div><label>Tip</label><select id="newTip" onchange="document.getElementById('recurringField').style.display=this.value==='Cheltuiala'?'block':'none'">
       <option value="Incasare">Încasare</option>
       <option value="Cheltuiala">Cheltuială</option>
       <option value="Injectie">Injecție acționar</option>
     </select></div>
     <div><label>Sumă (RON)</label><input type="number" id="newSuma" min="0" step="1" placeholder="0"></div>
+    <div id="recurringField" style="display:none"><label>Frecvență</label><select id="newRecurring">
+      <option value="">O singură dată</option>
+      <option value="recurring">🔄 Lunar (recurentă)</option>
+    </select></div>
     <div style="display:flex;align-items:flex-end"><button class="add-btn" onclick="addRow()"><i class="ti ti-check"></i> Adaugă</button></div>
   </div>
 </div>
@@ -372,7 +381,7 @@ async function dbLoad(){
   return await res.json();
 }
 async function dbSave(){
-  await fetch(RTDB+'/cashflow.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(rows.map(r=>({data:r.data,desc:r.desc,sala:r.sala,tip:r.tip,val:r.val,soldOverride:r.soldOverride??null,capId:r.capId??null})))});
+  await fetch(RTDB+'/cashflow.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(rows.map(r=>({data:r.data,desc:r.desc,sala:r.sala,tip:r.tip,val:r.val,soldOverride:r.soldOverride??null,capId:r.capId??null,recurring:r.recurring??null})))});
 }
 async function capDbLoad(){
   const res=await fetch(RTDB+'/capacity.json');
@@ -706,6 +715,7 @@ function renderTable(){
     tr.dataset.idx=idx;
     if(isToday) tr.className='today-row';
     else if(r.tip==='Incasare') tr.className='incasare-row';
+    else if(r.tip==='Cheltuiala'&&r.recurring) tr.className='recurring-row';
     else if(r.tip==='Cheltuiala') tr.className='cheltuiala-row';
     tr.innerHTML=`
       <td style="color:#999;font-size:12px;white-space:nowrap">
@@ -714,7 +724,7 @@ function renderTable(){
       </td>
       <td>
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px">
-          <span>${r.desc}</span>${r.capId?'<span title="Legat de Capacity" style="font-size:10px;background:#E6F1FB;color:#185FA5;border-radius:4px;padding:1px 5px;margin-left:4px;font-weight:500">🔗</span>':''}
+          <span>${r.desc}</span>${r.capId?'<span title="Legat de Capacity" style="font-size:10px;background:#E6F1FB;color:#185FA5;border-radius:4px;padding:1px 5px;margin-left:4px;font-weight:500">🔗</span>':''}${r.recurring?'<span class="recurring-badge">🔄 lunar</span>':''}
           <span class="mob-amount" style="font-weight:600;font-size:12px;color:${r.tip==='Incasare'?'#1D9E75':r.tip==='Cheltuiala'?'#E24B4A':'#BA7517'};white-space:nowrap">${r.tip==='Cheltuiala'?'−':'+'}${ron(r.val)}</span>
         </div>
         <div class="mob-badges">
@@ -860,13 +870,16 @@ async function addRow(){
   const sala=document.getElementById('newSala').value;
   const tip=document.getElementById('newTip').value;
   const suma=parseFloat(document.getElementById('newSuma').value);
+  const recurring=tip==='Cheltuiala'&&document.getElementById('newRecurring').value==='recurring'||null;
   if(!data||!desc||isNaN(suma)||suma<=0){alert('Completează toate câmpurile corect.');return;}
   snapshot();
-  rows.push({data,desc,sala,tip,val:suma,soldOverride:null,sold:0});
+  rows.push({data,desc,sala,tip,val:suma,soldOverride:null,sold:0,recurring:recurring||null});
   rows.sort((a,b)=>a.data.localeCompare(b.data));
   await dbSave();
   document.getElementById('newDesc').value='';
   document.getElementById('newSuma').value='';
+  document.getElementById('newRecurring').value='';
+  document.getElementById('recurringField').style.display='none';
   updateCards();
   renderTable();
 }
@@ -1377,6 +1390,34 @@ function switchTab(tab){
 // ================================================================
 //  INIT
 // ================================================================
+async function migrateRecurring(){
+  if(rows.some(r=>r.recurring)) return;
+  const recurringNames=['Utilitati S1','Leasing GRENKE','Chirie Sala 1','Chirie Sala 2','Intretinere S2','Utilitati S2','Your Reformer','Intretinere S1','Marketing (abonament)','Website'];
+  let changed=false;
+  rows.forEach(r=>{
+    if(r.data<'2026-06'||r.tip!=='Cheltuiala') return;
+    if(r.desc==='Leasing S1 (Gym+Cardio)'||r.desc==='Leasing Aparat Cardio'){r.desc='Leasing JJ Sala 1';r.recurring=true;r.soldOverride=null;changed=true;return;}
+    if(r.desc==='DIGI NET'){r.val=191;r.recurring=true;r.soldOverride=null;changed=true;return;}
+    if(r.desc==='Leasing JJ Sala 1'){r.recurring=true;changed=true;return;}
+    if(recurringNames.includes(r.desc)){r.recurring=true;changed=true;}
+  });
+  ['2026-06-30','2026-07-30'].forEach(date=>{
+    const m=date.slice(0,7);
+    if(!rows.find(r=>r.desc==='Leasing JJ Pilates'&&r.data.startsWith(m))){
+      rows.push({data:date,desc:'Leasing JJ Pilates',sala:'Sala 2',tip:'Cheltuiala',val:415,soldOverride:null,sold:0,recurring:true});
+      changed=true;
+    }
+    if(!rows.find(r=>r.desc==='Marketing (final)'&&r.data.startsWith(m))){
+      rows.push({data:date,desc:'Marketing (final)',sala:'Comun',tip:'Cheltuiala',val:700,soldOverride:null,sold:0,recurring:true});
+      changed=true;
+    }
+  });
+  if(changed){
+    rows.sort((a,b)=>a.data.localeCompare(b.data));
+    await dbSave();
+  }
+}
+
 async function init(){
   document.getElementById('tblBody').innerHTML='<tr><td colspan="9" class="empty-row" style="color:#888">Se încarcă datele din cloud…</td></tr>';
   try{
@@ -1406,6 +1447,7 @@ async function init(){
 
   document.getElementById('newData').value=todayStr;
   updateDupLabel();
+  await migrateRecurring();
   updateCards();
   renderTable();
 
