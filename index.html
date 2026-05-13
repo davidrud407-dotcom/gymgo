@@ -1168,10 +1168,10 @@ function renderCapacity(){
     tr.innerHTML=`
       <td><strong>${mb.name}</strong>${isRollover?'<span class="rollover-badge">rollover</span>':''}</td>
       <td style="color:#888;font-size:12px;white-space:nowrap">${dStr}</td>
-      <td class="num"><span class="ses-badge">${mb.sessions>0?mb.sessions+' ses':'—'}</span></td>
+      <td class="num" id="cap-ses-${mb.id}" onclick="editCapField(${mb.id},'sessions')" style="cursor:pointer" title="Click pentru a edita"><span class="ses-badge">${mb.sessions>0?mb.sessions+' ses':'—'}</span> <i class="ti ti-pencil" style="font-size:10px;color:#ddd"></i></td>
       <td class="num" style="font-weight:600">${sInMRounded}</td>
       <td class="num" style="color:${rollover>0?'#7B5EA7':'#bbb'}">${rollover>0?rollover:'—'}</td>
-      <td class="num">${mb.price>0?mb.price.toLocaleString('ro-RO')+' RON':'<span style="color:#bbb">gratuit</span>'}</td>
+      <td class="num" id="cap-price-${mb.id}" onclick="editCapField(${mb.id},'price')" style="cursor:pointer" title="Click pentru a edita">${mb.price>0?mb.price.toLocaleString('ro-RO')+' RON':'<span style="color:#bbb">gratuit</span>'} <i class="ti ti-pencil" style="font-size:10px;color:#ddd"></i></td>
       <td><button class="del-btn" onclick="deleteMember(${mb.id})" title="Șterge abonamentul">🗑</button></td>
     `;
     tbody.appendChild(tr);
@@ -1213,6 +1213,43 @@ async function deleteMember(id){
   const mb=capacityData.find(m=>m.id===id);
   if(!mb||!confirm('Ștergi abonamentul lui '+mb.name+'?')) return;
   capacityData=capacityData.filter(m=>m.id!==id);
+  await capDbSave();
+  renderCapacity();
+}
+
+function editCapField(id, field){
+  const mb=capacityData.find(m=>m.id===id);
+  if(!mb) return;
+  const cellId=field==='sessions'?'cap-ses-'+id:'cap-price-'+id;
+  const cell=document.getElementById(cellId);
+  if(!cell) return;
+  const currentVal=mb[field];
+  const isSession=field==='sessions';
+  cell.innerHTML=`<div style="display:flex;align-items:center;gap:4px;justify-content:flex-end">
+    ${isSession?`<select id="cap-edit-input-${id}" style="font-size:12px;padding:3px 6px;border:1.5px solid #378ADD;border-radius:5px;outline:none;background:#fff">
+      <option value="8" ${currentVal===8?'selected':''}>8 ses</option>
+      <option value="11" ${currentVal===11?'selected':''}>11 ses</option>
+      <option value="12" ${currentVal===12?'selected':''}>12 ses</option>
+      <option value="16" ${currentVal===16?'selected':''}>16 ses</option>
+      <option value="20" ${currentVal===20?'selected':''}>20 ses</option>
+      <option value="30" ${currentVal===30?'selected':''}>30 ses</option>
+    </select>`:`<input id="cap-edit-input-${id}" type="number" min="0" step="1" value="${currentVal}" style="font-size:12px;padding:3px 6px;border:1.5px solid #378ADD;border-radius:5px;width:80px;outline:none;text-align:right">`}
+    <button class="save-btn" onclick="saveCapField(${id},'${field}')">✓</button>
+    <button class="cancel-btn" onclick="renderCapacity()">✕</button>
+  </div>`;
+  const inp=document.getElementById('cap-edit-input-'+id);
+  inp.focus();
+  if(!isSession){inp.select();}
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter')saveCapField(id,field);if(e.key==='Escape')renderCapacity();});
+}
+
+async function saveCapField(id, field){
+  const inp=document.getElementById('cap-edit-input-'+id);
+  const val=parseInt(inp.value);
+  if(isNaN(val)||val<0) return renderCapacity();
+  const mb=capacityData.find(m=>m.id===id);
+  if(!mb) return;
+  mb[field]=val;
   await capDbSave();
   renderCapacity();
 }
