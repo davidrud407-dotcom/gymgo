@@ -500,7 +500,7 @@ function renderTable(){
     else if(r.tip==='Cheltuiala') tr.className='cheltuiala-row';
     tr.innerHTML=`
       <td style="color:#999;font-size:12px;white-space:nowrap">
-        <span class="drag-handle" title="Trage pentru a schimba data"><i class="ti ti-grip-vertical"></i></span>
+        <span class="drag-handle" title="Trage pentru a schimba data">⠿</span>
         ${dStr}${todayBadge}
       </td>
       <td>
@@ -729,20 +729,27 @@ function scrollToToday(){
 }
 
 let dragSrcIdx=null;
-let touchSrcIdx=null,touchActive=false,touchTimer=null;
+let touchSrcIdx=null,touchActive=false,touchTimer=null,touchStartX=0,touchStartY=0;
 
 function addTouchDrag(tr){
   tr.addEventListener('touchstart',function(e){
     const self=this;
     const idx=parseInt(self.dataset.idx);
+    touchStartX=e.touches[0].clientX;
+    touchStartY=e.touches[0].clientY;
     touchTimer=setTimeout(()=>{
       touchActive=true;touchSrcIdx=idx;
       self.classList.add('dragging');
       navigator.vibrate&&navigator.vibrate(60);
-    },380);
+    },400);
   },{passive:true});
   tr.addEventListener('touchmove',function(e){
-    if(!touchActive){clearTimeout(touchTimer);return;}
+    if(!touchActive){
+      const dx=Math.abs(e.touches[0].clientX-touchStartX);
+      const dy=Math.abs(e.touches[0].clientY-touchStartY);
+      if(dx>10||dy>10)clearTimeout(touchTimer);
+      return;
+    }
     e.preventDefault();
     const t=e.touches[0];
     document.querySelectorAll('tr.drag-over').forEach(r=>r.classList.remove('drag-over'));
