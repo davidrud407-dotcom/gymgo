@@ -277,6 +277,7 @@ tr.rollover-row:hover td{background:#F3EEF9!important}
   <div style="display:flex;gap:8px;flex-wrap:wrap">
     <button class="export-btn" onclick="showCapAddForm()" style="background:#EAF3DE;border-color:#1D9E75;color:#0F6E56;font-weight:600">+ Client nou</button>
     <button class="export-btn" id="btnDuplicate" onclick="duplicateFromPrevMonth()">↩ Duplică din <span id="dupFromLbl">luna anterioară</span></button>
+    <button class="export-btn" onclick="syncCapToFlow()" style="background:#E6F1FB;border-color:#378ADD;color:#185FA5;font-weight:600">🔗 Sync → Cashflow</button>
   </div>
 </div>
 
@@ -371,7 +372,7 @@ async function dbLoad(){
   return await res.json();
 }
 async function dbSave(){
-  await fetch(RTDB+'/cashflow.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(rows.map(r=>({data:r.data,desc:r.desc,sala:r.sala,tip:r.tip,val:r.val,soldOverride:r.soldOverride??null})))});
+  await fetch(RTDB+'/cashflow.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(rows.map(r=>({data:r.data,desc:r.desc,sala:r.sala,tip:r.tip,val:r.val,soldOverride:r.soldOverride??null,capId:r.capId??null})))});
 }
 async function capDbLoad(){
   const res=await fetch(RTDB+'/capacity.json');
@@ -713,7 +714,7 @@ function renderTable(){
       </td>
       <td>
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:6px">
-          <span>${r.desc}</span>
+          <span>${r.desc}</span>${r.capId?'<span title="Legat de Capacity" style="font-size:10px;background:#E6F1FB;color:#185FA5;border-radius:4px;padding:1px 5px;margin-left:4px;font-weight:500">🔗</span>':''}
           <span class="mob-amount" style="font-weight:600;font-size:12px;color:${r.tip==='Incasare'?'#1D9E75':r.tip==='Cheltuiala'?'#E24B4A':'#BA7517'};white-space:nowrap">${r.tip==='Cheltuiala'?'−':'+'}${ron(r.val)}</span>
         </div>
         <div class="mob-badges">
@@ -1211,7 +1212,17 @@ async function addMember(){
 
 async function deleteMember(id){
   const mb=capacityData.find(m=>m.id===id);
-  if(!mb||!confirm('Ștergi abonamentul lui '+mb.name+'?')) return;
+  if(!mb) return;
+  const linked=rows.filter(r=>r.capId===id);
+  let msg='Ștergi abonamentul lui '+mb.name+'?';
+  if(linked.length) msg+='\n\nAtenție: se șterge și încasarea legată din Cashflow.';
+  if(!confirm(msg)) return;
+  if(linked.length){
+    rows=rows.filter(r=>r.capId!==id);
+    await dbSave();
+    updateCards();
+    renderTable();
+  }
   capacityData=capacityData.filter(m=>m.id!==id);
   await capDbSave();
   renderCapacity();
@@ -1252,6 +1263,66 @@ async function saveCapField(id, field){
   mb[field]=val;
   await capDbSave();
   renderCapacity();
+}
+
+function normName(s){return s.toLowerCase().replace(/\s*\(.*?\)/g,'').trim().split(/\s+/)[0];}
+
+async function syncCapToFlow(){
+  const [y,m]=capMonth.split('-').map(Number);
+  const mStart=new Date(y,m-1,1);
+  const mEnd=new Date(y,m,0);
+  const mbs=capacityData.filter(mb=>{
+    const s=new Date(mb.startDate+'T00:00:00');
+    return s>=mStart&&s<=mEnd&&mb.price>0;
+  });
+  if(!mbs.length){alert('Niciun abonament cu preț în '+capMonth+'.');return;}
+
+  let linked=0,priceFixed=0,toAdd=[];
+  const report=[];
+
+  mbs.forEach(mb=>{
+    // already linked by capId
+    let row=rows.find(r=>r.capId===mb.id);
+    if(row){
+      if(row.val!==mb.price){
+        report.push('⚠️ '+mb.name+': preț cashflow '+row.val+' RON → '+mb.price+' RON (se actualizează)');
+        row.val=mb.price; row.soldOverride=null; priceFixed++;
+      }
+      linked++; return;
+    }
+    // fuzzy match by first-word of name, same month, Incasare
+    const key=normName(mb.name);
+    row=rows.find(r=>r.tip==='Incasare'&&r.data.startsWith(capMonth)&&normName(r.desc)===key&&!r.capId);
+    if(row){
+      row.capId=mb.id;
+      if(row.val!==mb.price){
+        report.push('⚠️ '+mb.name+': preț cashflow '+row.val+' RON → '+mb.price+' RON (se actualizează)');
+        row.val=mb.price; row.soldOverride=null; priceFixed++;
+      }
+      linked++; return;
+    }
+    toAdd.push(mb);
+  });
+
+  const mName=MONTH_NAMES[String(m).padStart(2,'0')];
+  let msg='Sincronizare Capacity → Cashflow ('+mName+'):\n\n';
+  msg+='✓ '+linked+' abonamente deja prezente în cashflow\n';
+  if(priceFixed) msg+='📝 '+priceFixed+' prețuri actualizate\n';
+  if(toAdd.length) msg+='➕ '+toAdd.length+' lipsesc din cashflow (se adaugă):\n';
+  toAdd.forEach(mb=>{ msg+='   • '+mb.name+' — '+mb.price+' RON ('+mb.startDate+')\n'; });
+  if(report.length){msg+='\nDetalii modificări:\n';report.forEach(l=>{msg+='  '+l+'\n';});}
+  if(!toAdd.length&&!priceFixed){alert(msg+'\nTotul este sincronizat! ✓');return;}
+  if(!confirm(msg+'\nContinui?')) return;
+
+  toAdd.forEach(mb=>{
+    rows.push({data:mb.startDate,desc:mb.name,sala:'Sala 1',tip:'Incasare',val:mb.price,soldOverride:null,sold:0,capId:mb.id});
+  });
+  rows.sort((a,b)=>a.data.localeCompare(b.data));
+  await dbSave();
+  updateCards();
+  renderTable();
+  renderCapacity();
+  alert('✓ Sincronizare completă!');
 }
 
 async function duplicateFromPrevMonth(){
