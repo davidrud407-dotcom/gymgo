@@ -180,7 +180,8 @@ tr.rollover-row:hover td{background:#F3EEF9!important}
     <div class="hdr-title">GYM&amp;GO — Cashflow</div>
     <div class="hdr-sub">Sala 1 &amp; Sala 2 · Apr–Iul 2026 · Limită minimă: 9.500 RON</div>
   </div>
-  <div style="display:flex;gap:8px">
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <span id="saveStatus" style="font-size:11px;font-weight:600;padding:4px 10px;border-radius:20px;border:1px solid rgba(0,0,0,0.12);background:#f0eeea;color:#888;transition:all .3s;white-space:nowrap">☁ Auto-save on</span>
     <button class="export-btn" onclick="scrollToToday()" id="btnToday" style="background:#EAF3DE;border-color:#1D9E75;color:#0F6E56;font-weight:600"><i class="ti ti-calendar-event"></i><span class="btn-txt"> Mergi la azi</span></button>
     <button class="export-btn" onclick="undo()" id="btnUndo" style="opacity:.4;cursor:not-allowed" disabled title="Ctrl+Z"><i class="ti ti-arrow-back-up"></i><span class="btn-txt"> Undo</span></button>
     <button class="export-btn" onclick="exportCSV()"><i class="ti ti-download"></i><span class="btn-txt"> Export CSV</span></button>
@@ -385,8 +386,34 @@ async function dbLoad(){
   if(!res.ok) throw new Error('load failed');
   return await res.json();
 }
+let _saveTimer=null;
+function showSaveStatus(state){
+  const el=document.getElementById('saveStatus');
+  if(!el)return;
+  clearTimeout(_saveTimer);
+  if(state==='saving'){
+    el.textContent='⏳ Salvând...';
+    el.style.background='#F3EEF9';el.style.color='#5B3E8A';el.style.borderColor='#7B5EA7';
+  } else if(state==='ok'){
+    el.textContent='✓ Salvat';
+    el.style.background='#EAF3DE';el.style.color='#0F6E56';el.style.borderColor='#1D9E75';
+    _saveTimer=setTimeout(()=>{el.textContent='☁ Auto-save on';el.style.background='#f0eeea';el.style.color='#888';el.style.borderColor='rgba(0,0,0,0.12)';},3000);
+  } else if(state==='error'){
+    el.textContent='✗ Eroare salvare!';
+    el.style.background='#FCEBEB';el.style.color='#A32D2D';el.style.borderColor='#E24B4A';
+  }
+}
 async function dbSave(){
-  await fetch(RTDB+'/cashflow.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(rows.map(r=>({data:r.data,desc:r.desc,sala:r.sala,tip:r.tip,val:r.val,soldOverride:r.soldOverride??null,capId:r.capId??null,recurring:r.recurring??null})))});
+  showSaveStatus('saving');
+  try{
+    const res=await fetch(RTDB+'/cashflow.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(rows.map(r=>({data:r.data,desc:r.desc,sala:r.sala,tip:r.tip,val:r.val,soldOverride:r.soldOverride??null,capId:r.capId??null,recurring:r.recurring??null})))});
+    if(!res.ok) throw new Error('save failed '+res.status);
+    showSaveStatus('ok');
+  }catch(e){
+    console.error('dbSave error:',e);
+    showSaveStatus('error');
+    throw e;
+  }
 }
 async function capDbLoad(){
   const res=await fetch(RTDB+'/capacity.json');
@@ -394,7 +421,16 @@ async function capDbLoad(){
   return await res.json();
 }
 async function capDbSave(){
-  await fetch(RTDB+'/capacity.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(capacityData)});
+  showSaveStatus('saving');
+  try{
+    const res=await fetch(RTDB+'/capacity.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(capacityData)});
+    if(!res.ok) throw new Error('capsave failed '+res.status);
+    showSaveStatus('ok');
+  }catch(e){
+    console.error('capDbSave error:',e);
+    showSaveStatus('error');
+    throw e;
+  }
 }
 
 // ================================================================
