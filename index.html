@@ -167,7 +167,8 @@ tr.rollover-row:hover td{background:#F3EEF9!important}
 <!-- TAB BAR -->
 <div class="tab-bar">
   <button class="tab-btn active" id="tabBtnCashflow" onclick="switchTab('cashflow')">💰 Cashflow</button>
-  <button class="tab-btn" id="tabBtnCapacity" onclick="switchTab('capacity')">📊 Capacity</button>
+  <button class="tab-btn" id="tabBtnCap1" onclick="switchTab('cap1')">📊 Capacity Gym 1</button>
+  <button class="tab-btn" id="tabBtnCap2" onclick="switchTab('cap2')">📊 Capacity Gym 2</button>
 </div>
 
 <!-- ============================================================ -->
@@ -283,7 +284,7 @@ tr.rollover-row:hover td{background:#F3EEF9!important}
 
 <div class="hdr">
   <div>
-    <div class="hdr-title">GYM&amp;GO — Capacity</div>
+    <div class="hdr-title" id="capGymTitle">GYM&amp;GO — Capacity Gym 1</div>
     <div class="hdr-sub" id="capHdrSub">Abonamente active · 12 sloturi/zi</div>
   </div>
   <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -415,15 +416,17 @@ async function dbSave(){
     throw e;
   }
 }
-async function capDbLoad(){
-  const res=await fetch(RTDB+'/capacity.json');
+async function capDbLoad(gym){
+  const path=gym===2?'/capacity2.json':'/capacity.json';
+  const res=await fetch(RTDB+path);
   if(!res.ok) throw new Error('cap load failed');
   return await res.json();
 }
 async function capDbSave(){
+  const path=activeCapGym===2?'/capacity2.json':'/capacity.json';
   showSaveStatus('saving');
   try{
-    const res=await fetch(RTDB+'/capacity.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(capacityData)});
+    const res=await fetch(RTDB+path,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(curCap())});
     if(!res.ok) throw new Error('capsave failed '+res.status);
     showSaveStatus('ok');
   }catch(e){
@@ -1101,10 +1104,18 @@ document.addEventListener('keydown',e=>{
 //  CAPACITY MODULE
 // ================================================================
 const CAP_SLOTS=12;
-let capacityData=[];
+let capacityData1=[];
+let capacityData2=[];
 let capMonth='2026-05';
 let capChartInst=null;
-let capNextId=200;
+let capNextId1=200;
+let capNextId2=400;
+let activeCapGym=1;
+
+function curCap(){return activeCapGym===1?capacityData1:capacityData2;}
+function setCapData(d){if(activeCapGym===1)capacityData1=d;else capacityData2=d;}
+function curSala(){return activeCapGym===1?'Sala 1':'Sala 2';}
+function incCapId(){if(activeCapGym===1){capNextId1++;return capNextId1;}else{capNextId2++;return capNextId2;}}
 
 function daysInMonth(ym){
   const [y,m]=ym.split('-').map(Number);
@@ -1123,7 +1134,7 @@ function getMembershipsForMonth(ym){
   const [y,m]=ym.split('-').map(Number);
   const mStart=new Date(y,m-1,1);
   const mEnd=new Date(y,m,0);
-  return capacityData.filter(mb=>{
+  return curCap().filter(mb=>{
     const s=new Date(mb.startDate+'T00:00:00');
     const e=new Date(s);
     e.setDate(e.getDate()+29);
@@ -1191,7 +1202,7 @@ function renderCapacity(){
   const dailyLoad=calcDailyLoad(capMonth);
 
   // Cards — active clients = those who have a membership that STARTS in this calendar month
-  const startedThisMonth=capacityData.filter(mb=>{
+  const startedThisMonth=curCap().filter(mb=>{
     const s=new Date(mb.startDate+'T00:00:00');
     return s>=mStart&&s<=mEnd;
   });
@@ -1245,7 +1256,8 @@ function renderCapacity(){
 
   if(!sorted.length) tbody.innerHTML='<tr><td colspan="7" class="empty-row">Niciun abonament activ în această lună.</td></tr>';
 
-  // Update sub-header
+  // Update title + sub-header
+  document.getElementById('capGymTitle').textContent='GYM&GO — Capacity Gym '+activeCapGym;
   const mn=MONTH_NAMES[capMonth.split('-')[1]]||capMonth;
   document.getElementById('capHdrSub').textContent=mn+' 2026 · '+startedThisMonth.length+' clienți activi · '+pct+'% ocupare';
 }
@@ -1265,13 +1277,13 @@ async function addMember(){
   const sessions=parseInt(document.getElementById('capNewSessions').value);
   const price=parseInt(document.getElementById('capNewPrice').value)||0;
   if(!name||!startDate){alert('Completează numele și data de start.');return;}
-  capNextId++;
-  const newMb={id:capNextId,name,startDate,sessions,price};
-  capacityData.push(newMb);
-  capacityData.sort((a,b)=>a.startDate.localeCompare(b.startDate));
+  const newId=incCapId();
+  const newMb={id:newId,name,startDate,sessions,price};
+  curCap().push(newMb);
+  curCap().sort((a,b)=>a.startDate.localeCompare(b.startDate));
   await capDbSave();
   if(price>0){
-    rows.push({data:startDate,desc:name,sala:'Sala 1',tip:'Incasare',val:price,soldOverride:null,sold:0,capId:capNextId});
+    rows.push({data:startDate,desc:name,sala:curSala(),tip:'Incasare',val:price,soldOverride:null,sold:0,capId:newId});
     rows.sort((a,b)=>a.data.localeCompare(b.data));
     await dbSave();
     updateCards();
@@ -1284,7 +1296,7 @@ async function addMember(){
 }
 
 async function deleteMember(id){
-  const mb=capacityData.find(m=>m.id===id);
+  const mb=curCap().find(m=>m.id===id);
   if(!mb) return;
   const linked=rows.filter(r=>r.capId===id);
   let msg='Ștergi abonamentul lui '+mb.name+'?';
@@ -1296,13 +1308,13 @@ async function deleteMember(id){
     updateCards();
     renderTable();
   }
-  capacityData=capacityData.filter(m=>m.id!==id);
+  setCapData(curCap().filter(m=>m.id!==id));
   await capDbSave();
   renderCapacity();
 }
 
 function editCapField(id, field){
-  const mb=capacityData.find(m=>m.id===id);
+  const mb=curCap().find(m=>m.id===id);
   if(!mb) return;
   const cellId=field==='sessions'?'cap-ses-'+id:'cap-price-'+id;
   const cell=document.getElementById(cellId);
@@ -1331,7 +1343,7 @@ async function saveCapField(id, field){
   const inp=document.getElementById('cap-edit-input-'+id);
   const val=parseInt(inp.value);
   if(isNaN(val)||val<0) return renderCapacity();
-  const mb=capacityData.find(m=>m.id===id);
+  const mb=curCap().find(m=>m.id===id);
   if(!mb) return;
   mb[field]=val;
   await capDbSave();
@@ -1344,7 +1356,7 @@ async function syncCapToFlow(){
   const [y,m]=capMonth.split('-').map(Number);
   const mStart=new Date(y,m-1,1);
   const mEnd=new Date(y,m,0);
-  const mbs=capacityData.filter(mb=>{
+  const mbs=curCap().filter(mb=>{
     const s=new Date(mb.startDate+'T00:00:00');
     return s>=mStart&&s<=mEnd&&mb.price>0;
   });
@@ -1378,7 +1390,8 @@ async function syncCapToFlow(){
   });
 
   const mName=MONTH_NAMES[String(m).padStart(2,'0')];
-  let msg='Sincronizare Capacity → Cashflow ('+mName+'):\n\n';
+  const gymLabel='Gym '+activeCapGym;
+  let msg='Sincronizare Capacity '+gymLabel+' → Cashflow ('+mName+'):\n\n';
   msg+='✓ '+linked+' abonamente deja prezente în cashflow\n';
   if(priceFixed) msg+='📝 '+priceFixed+' prețuri actualizate\n';
   if(toAdd.length) msg+='➕ '+toAdd.length+' lipsesc din cashflow (se adaugă):\n';
@@ -1388,7 +1401,7 @@ async function syncCapToFlow(){
   if(!confirm(msg+'\nContinui?')) return;
 
   toAdd.forEach(mb=>{
-    rows.push({data:mb.startDate,desc:mb.name,sala:'Sala 1',tip:'Incasare',val:mb.price,soldOverride:null,sold:0,capId:mb.id});
+    rows.push({data:mb.startDate,desc:mb.name,sala:curSala(),tip:'Incasare',val:mb.price,soldOverride:null,sold:0,capId:mb.id});
   });
   rows.sort((a,b)=>a.data.localeCompare(b.data));
   await dbSave();
@@ -1403,7 +1416,7 @@ async function duplicateFromPrevMonth(){
   const pm=m===1?12:m-1;
   const py=m===1?y-1:y;
   const prevYm=String(py)+'-'+String(pm).padStart(2,'0');
-  const prevMbs=capacityData.filter(mb=>mb.startDate.startsWith(prevYm));
+  const prevMbs=curCap().filter(mb=>mb.startDate.startsWith(prevYm));
 
   if(!prevMbs.length){
     alert('Nu există abonamente care au început în '+prevYm+'.');
@@ -1421,16 +1434,16 @@ async function duplicateFromPrevMonth(){
     const daysInNM=new Date(ny2,nm2,0).getDate();
     const nd=Math.min(sd,daysInNM);
     const newStart=String(ny2)+'-'+String(nm2).padStart(2,'0')+'-'+String(nd).padStart(2,'0');
-    const exists=capacityData.some(m=>m.name===mb.name&&m.startDate===newStart);
+    const exists=curCap().some(m=>m.name===mb.name&&m.startDate===newStart);
     if(!exists){
-      capNextId++;
-      capacityData.push({id:capNextId,name:mb.name,startDate:newStart,sessions:mb.sessions,price:mb.price});
+      const newId=incCapId();
+      curCap().push({id:newId,name:mb.name,startDate:newStart,sessions:mb.sessions,price:mb.price});
       added++;
     }
   });
 
   if(added===0){alert('Toate abonamentele există deja în '+mName+'.');return;}
-  capacityData.sort((a,b)=>a.startDate.localeCompare(b.startDate));
+  curCap().sort((a,b)=>a.startDate.localeCompare(b.startDate));
   await capDbSave();
   renderCapacity();
   alert(`✓ ${added} abonamente duplicate în ${mName}. Verifică lista și șterge clienții care nu au reînnoit.`);
@@ -1441,35 +1454,49 @@ async function duplicateFromPrevMonth(){
 // ================================================================
 function switchTab(tab){
   document.getElementById('cashflow-section').style.display=tab==='cashflow'?'block':'none';
-  document.getElementById('capacity-section').style.display=tab==='capacity'?'block':'none';
+  document.getElementById('capacity-section').style.display=(tab==='cap1'||tab==='cap2')?'block':'none';
   document.getElementById('tabBtnCashflow').classList.toggle('active',tab==='cashflow');
-  document.getElementById('tabBtnCapacity').classList.toggle('active',tab==='capacity');
-  if(tab==='capacity') renderCapacity();
+  document.getElementById('tabBtnCap1').classList.toggle('active',tab==='cap1');
+  document.getElementById('tabBtnCap2').classList.toggle('active',tab==='cap2');
+  if(tab==='cap1'){activeCapGym=1;renderCapacity();}
+  if(tab==='cap2'){activeCapGym=2;renderCapacity();}
 }
 
 // ================================================================
 //  INIT
 // ================================================================
 async function extendToSeptember(){
-  if(!confirm('Extinzi abonamentele + cheltuielile recurente din Iulie până în Septembrie?\n\nSe adaugă automat August și Septembrie în Capacity și Cashflow.')) return;
+  if(!confirm('Extinzi abonamentele + cheltuielile recurente din Iulie până în Septembrie?\n\nSe adaugă automat August și Septembrie în ambele Capacity + Cashflow.')) return;
   let capAdded=0,cfAdded=0,expAdded=0;
+  // Extend both gyms
+  for(const gymIdx of [1,2]){
+    const savedGym=activeCapGym;
+    activeCapGym=gymIdx;
+    const sala=curSala();
+    for(const [srcM,nm] of [['2026-07','2026-08'],['2026-08','2026-09']]){
+      const [ny,nmn]=nm.split('-').map(Number);
+      curCap().filter(mb=>mb.startDate.startsWith(srcM)).forEach(mb=>{
+        const [sy,sm,sd]=mb.startDate.split('-').map(Number);
+        const dim=new Date(ny,nmn,0).getDate();
+        const nd=Math.min(sd,dim);
+        const newStart=`${ny}-${String(nmn).padStart(2,'0')}-${String(nd).padStart(2,'0')}`;
+        if(!curCap().find(m=>m.name===mb.name&&m.startDate===newStart)){
+          const newId=incCapId();
+          curCap().push({id:newId,name:mb.name,startDate:newStart,sessions:mb.sessions,price:mb.price});
+          capAdded++;
+          if(mb.price>0&&!rows.find(r=>r.capId===newId)){
+            rows.push({data:newStart,desc:mb.name,sala,tip:'Incasare',val:mb.price,soldOverride:null,sold:0,capId:newId});
+            cfAdded++;
+          }
+        }
+      });
+    }
+    curCap().sort((a,b)=>a.startDate.localeCompare(b.startDate));
+    activeCapGym=savedGym;
+  }
+  // Extend recurring expenses (cashflow)
   for(const [srcM,nm] of [['2026-07','2026-08'],['2026-08','2026-09']]){
     const [ny,nmn]=nm.split('-').map(Number);
-    capacityData.filter(mb=>mb.startDate.startsWith(srcM)).forEach(mb=>{
-      const [sy,sm,sd]=mb.startDate.split('-').map(Number);
-      const dim=new Date(ny,nmn,0).getDate();
-      const nd=Math.min(sd,dim);
-      const newStart=`${ny}-${String(nmn).padStart(2,'0')}-${String(nd).padStart(2,'0')}`;
-      if(!capacityData.find(m=>m.name===mb.name&&m.startDate===newStart)){
-        capNextId++;
-        capacityData.push({id:capNextId,name:mb.name,startDate:newStart,sessions:mb.sessions,price:mb.price});
-        capAdded++;
-        if(mb.price>0&&!rows.find(r=>r.capId===capNextId)){
-          rows.push({data:newStart,desc:mb.name,sala:'Sala 1',tip:'Incasare',val:mb.price,soldOverride:null,sold:0,capId:capNextId});
-          cfAdded++;
-        }
-      }
-    });
     rows.filter(r=>r.data.startsWith(srcM)&&r.recurring&&r.tip==='Cheltuiala').forEach(r=>{
       const [ry,rm,rd]=r.data.split('-').map(Number);
       const dim=new Date(ny,nmn,0).getDate();
@@ -1481,9 +1508,13 @@ async function extendToSeptember(){
       }
     });
   }
-  capacityData.sort((a,b)=>a.startDate.localeCompare(b.startDate));
   rows.sort((a,b)=>a.data.localeCompare(b.data));
-  await Promise.all([dbSave(),capDbSave()]);
+  // Save both capacity gyms + cashflow
+  const savedGym=activeCapGym;
+  activeCapGym=1; await capDbSave();
+  activeCapGym=2; await capDbSave();
+  activeCapGym=savedGym;
+  await dbSave();
   updateCards();
   renderTable();
   renderCapacity();
@@ -1521,9 +1552,10 @@ async function migrateRecurring(){
 async function init(){
   document.getElementById('tblBody').innerHTML='<tr><td colspan="9" class="empty-row" style="color:#888">Se încarcă datele din cloud…</td></tr>';
   try{
-    const [cfData, capData]=await Promise.all([
+    const [cfData, capData1, capData2]=await Promise.all([
       fetch(RTDB+'/cashflow.json').then(r=>r.json()),
-      fetch(RTDB+'/capacity.json').then(r=>r.json())
+      fetch(RTDB+'/capacity.json').then(r=>r.json()),
+      fetch(RTDB+'/capacity2.json').then(r=>r.json()).catch(()=>null)
     ]);
     if(cfData&&cfData.length>0){
       rows=cfData.map(r=>({...r,sold:0}));
@@ -1531,13 +1563,15 @@ async function init(){
       rows=defaultRows.map(r=>({...r,sold:0}));
       await dbSave();
     }
-    if(capData&&capData.length>0){
-      capacityData=capData;
+    if(capData1&&capData1.length>0){
+      capacityData1=capData1;
     } else {
-      capacityData=defaultCapacity.map(m=>({...m}));
-      await capDbSave();
+      capacityData1=defaultCapacity.map(m=>({...m}));
+      activeCapGym=1; await capDbSave();
     }
-    capNextId=Math.max(...capacityData.map(m=>m.id),200)+1;
+    capacityData2=(capData2&&capData2.length>0)?capData2:[];
+    capNextId1=Math.max(...capacityData1.map(m=>m.id),200)+1;
+    capNextId2=Math.max(...(capacityData2.length?capacityData2.map(m=>m.id):[400]),400)+1;
   }catch(e){
     console.error('Firebase error:',e);
     const local=localStorage.getItem(STORAGE_KEY);
