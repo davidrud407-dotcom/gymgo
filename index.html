@@ -159,10 +159,43 @@ tr.rollover-row:hover td{background:#F3EEF9!important}
   .cap-tbl th:nth-child(2),.cap-tbl td:nth-child(2){display:none!important}
   .cap-tbl th:nth-child(5),.cap-tbl td:nth-child(5){display:none!important}
 }
+/* ---- LOGIN ---- */
+#loginOverlay{position:fixed;inset:0;background:#f8f7f4;display:flex;align-items:center;justify-content:center;z-index:9999}
+.login-card{background:#fff;border:1px solid rgba(0,0,0,0.09);border-radius:16px;padding:2.5rem 2rem;width:100%;max-width:360px;box-shadow:0 4px 24px rgba(0,0,0,0.07)}
+.login-logo{font-size:22px;font-weight:700;color:#1a1a18;margin-bottom:.3rem}
+.login-sub{font-size:13px;color:#888;margin-bottom:1.8rem}
+.login-field{margin-bottom:1rem}
+.login-field label{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:4px}
+.login-field input{width:100%;padding:9px 12px;border:1px solid rgba(0,0,0,0.14);border-radius:8px;font-size:14px;outline:none;font-family:inherit;background:#fff;color:#1a1a18}
+.login-field input:focus{border-color:#378ADD;box-shadow:0 0 0 3px rgba(55,138,221,0.12)}
+.login-btn{width:100%;background:#1a1a18;color:#fff;border:none;border-radius:8px;padding:10px;font-size:14px;font-weight:600;cursor:pointer;margin-top:.5rem;transition:opacity .15s}
+.login-btn:hover{opacity:.85}
+.login-err{font-size:12px;color:#E24B4A;margin-top:.75rem;text-align:center;min-height:18px}
 </style>
 </head>
 <body>
-<div class="container">
+
+<!-- ============================================================ -->
+<!--  LOGIN OVERLAY                                               -->
+<!-- ============================================================ -->
+<div id="loginOverlay">
+  <div class="login-card">
+    <div class="login-logo">GYM&amp;GO</div>
+    <div class="login-sub">Dashboard privat · Autentifică-te pentru acces</div>
+    <div class="login-field">
+      <label>Email</label>
+      <input type="email" id="loginEmail" placeholder="email@exemplu.com" autocomplete="username">
+    </div>
+    <div class="login-field">
+      <label>Parolă</label>
+      <input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="login-btn" onclick="doLogin()">Intră în dashboard</button>
+    <div class="login-err" id="loginErr"></div>
+  </div>
+</div>
+
+<div class="container" id="appContainer" style="display:none">
 
 <!-- TAB BAR -->
 <div class="tab-bar">
@@ -187,6 +220,7 @@ tr.rollover-row:hover td{background:#F3EEF9!important}
     <button class="export-btn" onclick="undo()" id="btnUndo" style="opacity:.4;cursor:not-allowed" disabled title="Ctrl+Z"><i class="ti ti-arrow-back-up"></i><span class="btn-txt"> Undo</span></button>
     <button class="export-btn" onclick="exportCSV()"><i class="ti ti-download"></i><span class="btn-txt"> Export CSV</span></button>
     <button class="export-btn" onclick="window.print()"><i class="ti ti-printer"></i><span class="btn-txt"> Print / PDF</span></button>
+    <button class="export-btn" onclick="doLogout()" title="Deconectare" style="margin-left:4px;border-color:#E24B4A;color:#E24B4A"><i class="ti ti-logout"></i><span class="btn-txt"> Ieși</span></button>
   </div>
 </div>
 
@@ -368,6 +402,64 @@ tr.rollover-row:hover td{background:#F3EEF9!important}
 </div><!-- end capacity-section -->
 
 </div><!-- end container -->
+
+<!-- Firebase Auth SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script>
+// ================================================================
+//  PUNE API KEY-UL TĂU AICI ↓
+// ================================================================
+const firebaseConfig = {
+  apiKey: "AIzaSyAOZUeo8DUEZvNtlVkCG-2C1wKUcessVe4",
+  authDomain: "gymgo-b752c.firebaseapp.com",
+  projectId: "gymgo-b752c",
+  databaseURL: "https://gymgo-b752c-default-rtdb.europe-west1.firebasedatabase.app"
+};
+firebase.initializeApp(firebaseConfig);
+const fbAuth = firebase.auth();
+
+async function doLogin(){
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass  = document.getElementById('loginPass').value;
+  const errEl = document.getElementById('loginErr');
+  errEl.textContent = '';
+  if(!email || !pass){ errEl.textContent = 'Completează email și parolă.'; return; }
+  try{
+    document.querySelector('.login-btn').textContent = 'Se verifică...';
+    await fbAuth.signInWithEmailAndPassword(email, pass);
+  } catch(e){
+    document.querySelector('.login-btn').textContent = 'Intră în dashboard';
+    errEl.textContent = 'Email sau parolă greșită.';
+  }
+}
+
+function doLogout(){
+  if(confirm('Ieși din dashboard?')) fbAuth.signOut();
+}
+
+// Enter key on password field triggers login
+document.getElementById('loginPass').addEventListener('keydown', e => {
+  if(e.key === 'Enter') doLogin();
+});
+document.getElementById('loginEmail').addEventListener('keydown', e => {
+  if(e.key === 'Enter') document.getElementById('loginPass').focus();
+});
+
+// Auth state — show/hide dashboard
+let appInitialized = false;
+fbAuth.onAuthStateChanged(user => {
+  if(user){
+    document.getElementById('loginOverlay').style.display = 'none';
+    document.getElementById('appContainer').style.display  = 'block';
+    if(!appInitialized){ appInitialized = true; init(); }
+  } else {
+    document.getElementById('loginOverlay').style.display = 'flex';
+    document.getElementById('appContainer').style.display  = 'none';
+    document.querySelector('.login-btn').textContent = 'Intră în dashboard';
+  }
+});
+</script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script>
@@ -1598,7 +1690,7 @@ async function init(){
   },300);
 }
 
-init();
+// init() is now called by firebase auth state change above
 </script>
 </body>
 </html>
