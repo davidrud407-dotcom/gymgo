@@ -255,6 +255,9 @@ tr.rollover-row:hover td{background:#F3EEF9!important}
   <button class="month-tab" onclick="setMonth('07',this)">Iulie</button>
   <button class="month-tab" onclick="setMonth('08',this)">August</button>
   <button class="month-tab" onclick="setMonth('09',this)">Septembrie</button>
+  <button class="month-tab" onclick="setMonth('10',this)">Octombrie</button>
+  <button class="month-tab" onclick="setMonth('11',this)">Noiembrie</button>
+  <button class="month-tab" onclick="setMonth('12',this)">Decembrie</button>
 </div>
 
 <div class="add-section" style="margin-bottom:1.2rem">
@@ -325,7 +328,7 @@ tr.rollover-row:hover td{background:#F3EEF9!important}
     <button class="export-btn" onclick="showCapAddForm()" style="background:#EAF3DE;border-color:#1D9E75;color:#0F6E56;font-weight:600">+ Client nou</button>
     <button class="export-btn" id="btnDuplicate" onclick="duplicateFromPrevMonth()">↩ Duplică din <span id="dupFromLbl">luna anterioară</span></button>
     <button class="export-btn" onclick="syncCapToFlow()" style="background:#E6F1FB;border-color:#378ADD;color:#185FA5;font-weight:600">🔗 Sync → Cashflow</button>
-    <button class="export-btn" onclick="extendToSeptember()" style="background:#F3EEF9;border-color:#7B5EA7;color:#5B3E8A;font-weight:600">📅 Extinde → Sep</button>
+    <button class="export-btn" onclick="extendToSeptember()" style="background:#F3EEF9;border-color:#7B5EA7;color:#5B3E8A;font-weight:600">📅 Extinde → Dec</button>
   </div>
 </div>
 
@@ -337,6 +340,9 @@ tr.rollover-row:hover td{background:#F3EEF9!important}
   <button class="month-tab" onclick="setCapMonth('2026-07',this)">Iulie</button>
   <button class="month-tab" onclick="setCapMonth('2026-08',this)">August</button>
   <button class="month-tab" onclick="setCapMonth('2026-09',this)">Septembrie</button>
+  <button class="month-tab" onclick="setCapMonth('2026-10',this)">Octombrie</button>
+  <button class="month-tab" onclick="setCapMonth('2026-11',this)">Noiembrie</button>
+  <button class="month-tab" onclick="setCapMonth('2026-12',this)">Decembrie</button>
 </div>
 
 <!-- Summary cards -->
@@ -1557,15 +1563,25 @@ function switchTab(tab){
 // ================================================================
 //  INIT
 // ================================================================
+// Months chained by "Extinde": each month copies from the previous one, up to December
+const EXTEND_MONTHS=['2026-07','2026-08','2026-09','2026-10','2026-11','2026-12'];
+// Build [src,dst] pairs starting from the latest month that already has data
+function extendPairs(hasData){
+  let start=0;
+  EXTEND_MONTHS.forEach((m,i)=>{if(hasData(m)) start=i;});
+  const pairs=[];
+  for(let i=start;i<EXTEND_MONTHS.length-1;i++) pairs.push([EXTEND_MONTHS[i],EXTEND_MONTHS[i+1]]);
+  return pairs;
+}
 async function extendToSeptember(){
-  if(!confirm('Extinzi abonamentele + cheltuielile recurente din Iulie până în Septembrie?\n\nSe adaugă automat August și Septembrie în ambele Capacity + Cashflow.')) return;
+  if(!confirm('Extinzi abonamentele + cheltuielile recurente până în Decembrie?\n\nFiecare lună se copiază din luna anterioară (pornind de la ultima lună cu date), în ambele Capacity + Cashflow.')) return;
   let capAdded=0,cfAdded=0,expAdded=0;
   // Extend both gyms
   for(const gymIdx of [1,2]){
     const savedGym=activeCapGym;
     activeCapGym=gymIdx;
     const sala=curSala();
-    for(const [srcM,nm] of [['2026-07','2026-08'],['2026-08','2026-09']]){
+    for(const [srcM,nm] of extendPairs(m=>curCap().some(mb=>mb.startDate.startsWith(m)))){
       const [ny,nmn]=nm.split('-').map(Number);
       curCap().filter(mb=>mb.startDate.startsWith(srcM)).forEach(mb=>{
         const [sy,sm,sd]=mb.startDate.split('-').map(Number);
@@ -1587,7 +1603,7 @@ async function extendToSeptember(){
     activeCapGym=savedGym;
   }
   // Extend recurring expenses (cashflow)
-  for(const [srcM,nm] of [['2026-07','2026-08'],['2026-08','2026-09']]){
+  for(const [srcM,nm] of extendPairs(m=>rows.some(r=>r.data.startsWith(m)&&r.recurring&&r.tip==='Cheltuiala'))){
     const [ny,nmn]=nm.split('-').map(Number);
     rows.filter(r=>r.data.startsWith(srcM)&&r.recurring&&r.tip==='Cheltuiala').forEach(r=>{
       const [ry,rm,rd]=r.data.split('-').map(Number);
@@ -1610,7 +1626,7 @@ async function extendToSeptember(){
   updateCards();
   renderTable();
   renderCapacity();
-  alert(`✓ Extindere completă!\n• ${capAdded} abonamente noi (Aug+Sep)\n• ${cfAdded} încasări adăugate în Cashflow\n• ${expAdded} cheltuieli recurente adăugate`);
+  alert(`✓ Extindere completă!\n• ${capAdded} abonamente noi (până în Dec)\n• ${cfAdded} încasări adăugate în Cashflow\n• ${expAdded} cheltuieli recurente adăugate`);
 }
 
 async function migrateRecurring(){
