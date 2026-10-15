@@ -212,6 +212,23 @@ tr.rollover-row:hover td{background:#F3EEF9!important}
 .bk-move{margin-top:8px;padding:10px;background:#faf9f6;border-radius:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .bk-move input,.bk-move select{font-size:12px;padding:5px 8px;border-radius:7px;border:1px solid rgba(0,0,0,0.15);background:#fff}
 .btn-danger{color:#A32D2D!important;border-color:#F0C4C4!important}
+/* ---- MEMBER PANEL ---- */
+.mp-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:50;display:flex;justify-content:flex-end}
+.mp-panel{background:#f8f7f4;width:min(720px,100%);height:100%;overflow-y:auto;padding:1.2rem 1.4rem 3rem;box-shadow:-8px 0 30px rgba(0,0,0,.15)}
+.mp-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:1rem}
+.mp-name{font-size:20px;font-weight:600}
+.mp-sub{font-size:13px;color:#888;margin-top:2px}
+.mp-close{background:#fff;border:1px solid rgba(0,0,0,.12);border-radius:8px;width:34px;height:34px;cursor:pointer;font-size:18px}
+.mp-sec{background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:12px;padding:1rem;margin-bottom:12px}
+.mp-sec h4{margin:0 0 .7rem;font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.04em;font-weight:500}
+.mp-kv{display:grid;grid-template-columns:160px 1fr;gap:6px 12px;font-size:13px;margin-bottom:.8rem}
+.mp-kv .k{color:#888}
+.mp-actions{display:flex;gap:6px;flex-wrap:wrap}
+.mp-form{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:10px;background:#faf9f6;border-radius:8px;margin-top:8px;font-size:12px}
+.mp-form select,.mp-form input{font-size:12px;padding:5px 8px;border-radius:7px;border:1px solid rgba(0,0,0,.15);background:#fff}
+.mp-badge{display:inline-block;padding:2px 8px;border-radius:5px;font-size:11px;font-weight:500;margin-left:6px}
+.mp-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(0,0,0,.05);font-size:13px}
+.mp-row:last-child{border-bottom:none}
 </style>
 </head>
 <body>
@@ -537,6 +554,10 @@ tr.rollover-row:hover td{background:#F3EEF9!important}
 </div>
 
 </div><!-- end bookings-section -->
+
+<div id="memberPanel" class="mp-overlay" style="display:none" onclick="if(event.target===this)closeMember()">
+  <div class="mp-panel" id="mpBody"></div>
+</div>
 
 </div><!-- end container -->
 
@@ -1808,8 +1829,8 @@ function renderClients() {
       return `${esc(s.planName)}${s.mode === 'duo' ? ' Duo' : ''} · ${esc(LOC_NAMES[s.locationId])}${state}`;
     }).join('<br>') || '<span style="color:#aaa">fără abonament</span>';
     const next = m.upcoming[0];
-    return `<tr>
-      <td><b>${esc(m.name)}</b></td>
+    return `<tr style="cursor:pointer" onclick="openMember('${m.id}')" title="Deschide fișa clientului">
+      <td><b>${esc(m.name)}</b> <span style="color:#378ADD;font-size:12px">› fișă</span></td>
       <td><a href="tel:${esc(m.phone)}">${esc(m.phone)}</a><br><span style="color:#888">${esc(m.email)}</span></td>
       <td>${subs}</td>
       <td>${next ? `${esc(fmtDateTime(next.start))} · ${esc(LOC_NAMES[next.locationId])}${m.upcoming.length > 1 ? ` <span style="color:#888">(+${m.upcoming.length - 1})</span>` : ''}` : '<span style="color:#aaa">—</span>'}</td>
@@ -1839,6 +1860,166 @@ async function activateLead(id, resend = false) {
   } catch (e) {
     showClientsError(e.message);
   }
+}
+
+// ================================================================
+//  MEMBER PANEL — every action the member has in the app, for staff
+// ================================================================
+let mpId = null, mpData = null, mpCatalog = null, mpOpen = {};
+const METHODS = [['cash', 'Cash'], ['transfer', 'Transfer'], ['card-pos', 'Card POS'], ['none', 'Gratuit']];
+const eur = (n) => '€' + (Number.isInteger(n) ? n : Number(n).toFixed(2));
+const shortD = (d) => d ? fmtDate(d) : '—';
+
+async function openMember(id) {
+  mpId = id; mpData = null; mpOpen = {};
+  document.getElementById('memberPanel').style.display = 'flex';
+  document.getElementById('mpBody').innerHTML = '<div class="empty-row">Se încarcă…</div>';
+  try {
+    if (!mpCatalog) mpCatalog = await appApi('/admin/catalog');
+    mpData = await appApi('/admin/members/' + id);
+    renderMember();
+  } catch (e) {
+    document.getElementById('mpBody').innerHTML = `<div class="warn-bar" style="display:flex">${esc(e.message)}</div>`;
+  }
+}
+
+function closeMember() {
+  document.getElementById('memberPanel').style.display = 'none';
+  mpId = null;
+  loadClients();
+}
+
+function mpToggle(key) { mpOpen = { [key]: !mpOpen[key] }; renderMember(); }
+
+const planOptions = (loc, mode, selected) => (mpCatalog.plans[loc][mode] || [])
+  .filter((p) => p.type === 'monthly' || mode === 'solo')
+  .map((p) => `<option value="${p.id}" ${p.id === selected ? 'selected' : ''}>${esc(p.name)} · ${p.sessions} sesiuni · ${eur(p.perPersonEur ? p.priceEur : p.priceEur)}${p.perPersonEur ? ' (Duo)' : ''}</option>`).join('');
+const methodSelect = (id) => `<select id="${id}">${METHODS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>`;
+
+async function mpRun(path, body, confirmMsg) {
+  if (confirmMsg && !confirm(confirmMsg)) return;
+  try {
+    mpData = await appApi(path, 'POST', body || {});
+    mpOpen = {};
+    renderMember();
+  } catch (e) { alert(e.message); }
+}
+const subAct = (subId, action, body, confirmMsg) => mpRun(`/admin/subscriptions/${subId}/${action}`, body, confirmMsg);
+const manualAmount = (methodId, amountId) => (document.getElementById(methodId).value === 'none' ? 0 : Number(document.getElementById(amountId).value) || 0);
+
+function renderSubscription(s) {
+  const L = LOC_NAMES;
+  const status = s.status === 'past_due' ? ['Plată restantă', 'badge-out'] : s.cancelAtPeriodEnd ? ['Se oprește', 'sc'] : s.frozenNow ? ['Freeze', 's1'] : ['Activ', 'badge-in'];
+  const next = s.nextPlan ? `${s.nextPlan.locationId && s.nextPlan.locationId !== s.locationId ? L[s.nextPlan.locationId] + ' · ' : ''}${esc(s.nextPlan.planName)}` : null;
+  const monthly = s.type === 'monthly';
+  const active = s.status === 'active';
+  const otherLoc = s.locationId === 'ivory7' ? 'ivory12' : 'ivory7';
+  const btn = (label, onclick, cls = 'filter-btn') => `<button class="${cls}" onclick="${onclick}">${label}</button>`;
+  let actions = '';
+  if (s.status === 'past_due') actions += btn('✓ Marchează plătit', `mpToggle('pay')`, 'add-btn');
+  if (monthly && active && s.cancelAtPeriodEnd) actions += btn('↺ Repornește (anulează oprirea)', `subAct('${s.id}','resume',{}, 'Repornești abonamentul? Se va reînnoi normal pe ${shortD(s.renewsOn)}.')`, 'add-btn');
+  if (monthly && active && !s.cancelAtPeriodEnd) actions += btn('Oprește de la reînnoire', `subAct('${s.id}','cancel',{}, 'Oprești reînnoirea? Abonamentul rămâne activ până pe ${shortD(s.periodEnd)}.')`);
+  if (monthly && active && !s.cancelAtPeriodEnd && !s.freezeScheduled) actions += btn('2 săptămâni freeze', `subAct('${s.id}','freeze',{}, 'Pui freeze pe luna care începe pe ${shortD(s.renewsOn)}? Plătește 50% și are 50% din sesiuni.')`);
+  if (s.freezeScheduled) actions += btn('Anulează freeze-ul', `subAct('${s.id}','unfreeze',{}, 'Anulezi freeze-ul programat?')`);
+  if (monthly && active) actions += btn('Schimbă planul', `mpToggle('plan')`);
+  if (monthly && active && !s.cancelAtPeriodEnd) actions += btn('Mută la ' + L[otherLoc], `mpToggle('move')`);
+  if (s.nextPlan) actions += btn('Anulează schimbarea programată', `subAct('${s.id}','clear-next',{}, 'Anulezi schimbarea programată pentru ${shortD(s.renewsOn)}?')`);
+  actions += btn('✕ Încheie acum', `subAct('${s.id}','end-now',{}, 'Închei abonamentul ACUM? Sesiunile viitoare se anulează și clientul primește email pentru fiecare.')`, 'filter-btn btn-danger');
+
+  let form = '';
+  if (mpOpen.pay) form = `<div class="mp-form">Încasat ${methodSelect('mpPayMethod')} suma € <input id="mpPayAmount" type="number" value="${s.priceEur}" style="width:80px">
+    <button class="add-btn" style="padding:5px 12px;font-size:12px" onclick="subAct('${s.id}','pay-now',{method:document.getElementById('mpPayMethod').value,amountEur:manualAmount('mpPayMethod','mpPayAmount')})">Confirmă</button></div>`;
+  if (mpOpen.plan) form = `<div class="mp-form">Plan nou <select id="mpPlan">${planOptions(s.locationId, s.mode, null)}</select>
+    <select id="mpWhen"><option value="now">acum</option><option value="renewal">de la ${shortD(s.renewsOn)}</option></select>
+    dacă e acum, încasat ${methodSelect('mpPlanMethod')} € <input id="mpPlanAmount" type="number" value="0" style="width:70px">
+    <button class="add-btn" style="padding:5px 12px;font-size:12px" onclick="subAct('${s.id}','change-plan',{planId:document.getElementById('mpPlan').value,when:document.getElementById('mpWhen').value,method:document.getElementById('mpPlanMethod').value,amountEur:manualAmount('mpPlanMethod','mpPlanAmount')})">Aplică</button></div>`;
+  if (mpOpen.move) form = `<div class="mp-form">La ${L[otherLoc]}, de la ${shortD(s.renewsOn)}: <select id="mpMoveMode" onchange="document.getElementById('mpMovePlan').innerHTML=planOptions('${otherLoc}',this.value,null)"><option value="solo">Solo</option><option value="duo">Duo</option></select>
+    <select id="mpMovePlan">${planOptions(otherLoc, 'solo', 'pro')}</select>
+    <button class="add-btn" style="padding:5px 12px;font-size:12px" onclick="subAct('${s.id}','switch-location',{locationId:'${otherLoc}',mode:document.getElementById('mpMoveMode').value,planId:document.getElementById('mpMovePlan').value})">Programează mutarea</button></div>`;
+
+  return `<div class="mp-sec">
+    <h4>Abonament · ${L[s.locationId]}</h4>
+    <div class="mp-kv">
+      <span class="k">Plan</span><span><b>${esc(s.planName)}${s.mode === 'duo' ? ' Duo' : ''}</b> · ${eur(s.priceEur)}${monthly ? ' / lună' : ''}<span class="mp-badge ${status[1]}">${status[0]}</span></span>
+      <span class="k">Perioada curentă</span><span>${shortD(s.periodStart)} – ${shortD(s.periodEnd)}</span>
+      <span class="k">Sesiuni</span><span>${s.remaining} rămase din ${s.quota} (${s.used} folosite)</span>
+      ${monthly ? `<span class="k">Reînnoire</span><span>${s.cancelAtPeriodEnd ? '<b>oprită</b> — se încheie pe ' + shortD(s.periodEnd) : shortD(s.renewsOn) + ' · ' + eur(s.nextPrice)}</span>` : ''}
+      ${next ? `<span class="k">Schimbare programată</span><span>din ${shortD(s.renewsOn)}: <b>${next}</b></span>` : ''}
+      ${s.freezeScheduled ? `<span class="k">Freeze</span><span>programat pentru luna din ${shortD(s.renewsOn)}</span>` : s.frozenNow ? '<span class="k">Freeze</span><span>în curs (luna asta)</span>' : ''}
+    </div>
+    <div class="mp-actions">${actions}</div>${form}
+  </div>`;
+}
+
+function renderMember() {
+  if (!mpData) return;
+  const m = mpData.member;
+  const live = mpData.subscriptions.filter((s) => s.status !== 'ended');
+  const liveSub = live[0];
+  const endedCount = mpData.subscriptions.length - live.length;
+
+  const addSub = !liveSub ? `<div class="mp-sec"><h4>Fără abonament activ</h4>
+    <div class="mp-actions"><button class="add-btn" onclick="mpToggle('add')">+ Adaugă abonament</button></div>
+    ${mpOpen.add ? `<div class="mp-form">
+      <select id="mpAddLoc" onchange="document.getElementById('mpAddPlan').innerHTML=planOptions(this.value,document.getElementById('mpAddMode').value,'pro')"><option value="ivory7">Ivory 7</option><option value="ivory12">Ivory 12</option></select>
+      <select id="mpAddMode" onchange="document.getElementById('mpAddPlan').innerHTML=planOptions(document.getElementById('mpAddLoc').value,this.value,'pro')"><option value="solo">Solo</option><option value="duo">Duo</option></select>
+      <select id="mpAddPlan">${planOptions('ivory7', 'solo', 'pro')}</select>
+      încasat ${methodSelect('mpAddMethod')} € <input id="mpAddAmount" type="number" placeholder="preț plan" style="width:80px">
+      <button class="add-btn" style="padding:5px 12px;font-size:12px" onclick="mpRun('/admin/members/${m.id}/subscriptions',{locationId:document.getElementById('mpAddLoc').value,mode:document.getElementById('mpAddMode').value,planId:document.getElementById('mpAddPlan').value,method:document.getElementById('mpAddMethod').value,amountEur:document.getElementById('mpAddMethod').value==='none'?0:(document.getElementById('mpAddAmount').value?Number(document.getElementById('mpAddAmount').value):undefined)},'Adaugi abonamentul? Nu se debitează niciun card; plata se înregistrează manual.')">Adaugă</button>
+      <span style="color:#888">Gol = prețul planului. Perioada începe azi.</span>
+    </div>` : ''}</div>` : '';
+
+  const bookings = `<div class="mp-sec"><h4>Rezervări viitoare (${mpData.upcoming.length})</h4>
+    ${mpData.upcoming.map((b) => `<div class="mp-row"><span>${esc(fmtDateTime(b.start))} · ${LOC_NAMES[b.locationId]}</span>
+      <span class="mp-actions"><button class="filter-btn" onclick="closeMember();bkDay='${b.day}';bkMonth='${b.day.slice(0, 7)}';switchTab('bookings')">↔ Mută (în BOOKINGS)</button>
+      <button class="filter-btn btn-danger" onclick="mpCancelBooking('${b.id}')">✕ Șterge</button></span></div>`).join('') || '<div style="color:#aaa;font-size:13px">Nicio rezervare.</div>'}
+    ${liveSub && liveSub.status === 'active' ? `<div class="mp-actions" style="margin-top:8px"><button class="filter-btn" onclick="mpToggle('book')">+ Rezervă pentru client</button></div>
+      ${mpOpen.book ? `<div class="mp-form">${LOC_NAMES[liveSub.locationId]} · zi <input type="date" id="mpBookDay" min="${bkToday()}" value="${bkToday()}" onchange="mpLoadSlots('${liveSub.locationId}')">
+        <select id="mpBookTime"><option>Se încarcă…</option></select>
+        <button class="add-btn" style="padding:5px 12px;font-size:12px" onclick="mpRun('/admin/members/${m.id}/bookings',{locationId:'${liveSub.locationId}',day:document.getElementById('mpBookDay').value,time:document.getElementById('mpBookTime').value})">Rezervă</button></div>` : ''}` : ''}
+  </div>`;
+
+  const payments = `<div class="mp-sec"><h4>Plăți</h4>
+    ${mpData.payments.map((p) => `<div class="mp-row"><span>${shortD(p.date)} · ${esc(p.description)}</span><span>${eur(p.amountEur)}${p.status !== 'paid' ? ' <span class="mp-badge badge-out">eșuată</span>' : ''}</span></div>`).join('') || '<div style="color:#aaa;font-size:13px">Nicio plată.</div>'}
+  </div>`;
+
+  document.getElementById('mpBody').innerHTML = `
+    <div class="mp-head">
+      <div><div class="mp-name">${esc(m.name)}</div>
+        <div class="mp-sub">${esc(m.email)} · <a href="tel:${esc(m.phone)}">${esc(m.phone)}</a> · cod acces <b>${esc(m.accessCode)}</b> · membru din ${shortD(m.memberSince.slice(0, 10))}</div></div>
+      <button class="mp-close" onclick="closeMember()" aria-label="Închide">×</button>
+    </div>
+    <div class="mp-sec"><h4>Date client</h4>
+      <div class="mp-actions"><button class="filter-btn" onclick="mpToggle('edit')">✎ Editează nume / telefon</button></div>
+      ${mpOpen.edit ? `<div class="mp-form">Nume <input id="mpName" value="${esc(m.name)}" style="width:200px"> Telefon <input id="mpPhone" value="${esc(m.phone)}" style="width:130px">
+        <button class="add-btn" style="padding:5px 12px;font-size:12px" onclick="mpRun('/admin/members/${m.id}/profile',{name:document.getElementById('mpName').value,phone:document.getElementById('mpPhone').value})">Salvează</button></div>` : ''}
+    </div>
+    ${live.map(renderSubscription).join('')}
+    ${addSub}
+    ${bookings}
+    ${payments}
+    ${endedCount ? `<div style="font-size:12px;color:#aaa">${endedCount} ${endedCount === 1 ? 'abonament încheiat' : 'abonamente încheiate'} în istoric.</div>` : ''}`;
+  if (mpOpen.book) mpLoadSlots(liveSub.locationId);
+}
+
+async function mpLoadSlots(loc) {
+  const sel = document.getElementById('mpBookTime');
+  const day = document.getElementById('mpBookDay').value;
+  sel.innerHTML = '<option>Se încarcă…</option>';
+  try {
+    const r = await appApi('/admin/bookings?day=' + day);
+    const free = r.locations.find((l) => l.locationId === loc).slots.filter((x) => !x.booking && !x.past);
+    sel.innerHTML = free.length ? free.map((x) => `<option value="${x.time}">${x.time} – ${x.endTime}</option>`).join('') : '<option value="">Niciun interval liber</option>';
+  } catch (e) { sel.innerHTML = `<option value="">${esc(e.message)}</option>`; }
+}
+
+async function mpCancelBooking(id) {
+  if (!confirm('Ștergi rezervarea? Sesiunea se returnează în abonament și clientul primește email.')) return;
+  try {
+    await appApi('/admin/bookings/' + id + '/cancel', 'POST');
+    mpData = await appApi('/admin/members/' + mpId);
+    renderMember();
+  } catch (e) { alert(e.message); }
 }
 
 // ================================================================
