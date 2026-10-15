@@ -202,6 +202,7 @@ tr.rollover-row:hover td{background:#F3EEF9!important}
   <button class="tab-btn active" id="tabBtnCashflow" onclick="switchTab('cashflow')">💰 Cashflow</button>
   <button class="tab-btn" id="tabBtnCap1" onclick="switchTab('cap1')">📊 Capacity Gym 1</button>
   <button class="tab-btn" id="tabBtnCap2" onclick="switchTab('cap2')">📊 Capacity Gym 2</button>
+  <button class="tab-btn" id="tabBtnClients" onclick="switchTab('clients')">👥 Clienți aplicație</button>
 </div>
 
 <!-- ============================================================ -->
@@ -407,6 +408,49 @@ tr.rollover-row:hover td{background:#F3EEF9!important}
 
 </div><!-- end capacity-section -->
 
+<!-- ============================================================ -->
+<!--  CLIENȚI APLICAȚIE (data from the client app API)            -->
+<!-- ============================================================ -->
+<div id="clients-section" style="display:none">
+
+<div class="hdr">
+  <div>
+    <div class="hdr-title">GYM&amp;GO — Clienți aplicație</div>
+    <div class="hdr-sub">Cereri de demo și conturi din aplicația de clienți</div>
+  </div>
+  <div><button class="filter-btn" onclick="loadClients()">↻ Reîncarcă</button></div>
+</div>
+
+<div class="cards">
+  <div class="card"><div class="card-lbl">Cereri noi</div><div class="card-val orange" id="clNew">—</div></div>
+  <div class="card"><div class="card-lbl">Demo programat</div><div class="card-val blue" id="clDemo">—</div></div>
+  <div class="card"><div class="card-lbl">Membri cu cont</div><div class="card-val" id="clMembers">—</div></div>
+  <div class="card"><div class="card-lbl">Abonamente active</div><div class="card-val green" id="clSubs">—</div></div>
+</div>
+
+<div id="clError" class="warn-bar"></div>
+
+<div class="chart-lbl">Cereri de demo</div>
+<div class="filters">
+  <button class="filter-btn active" data-lead-filter="open" onclick="setLeadFilter('open')">Deschise</button>
+  <button class="filter-btn" data-lead-filter="converted" onclick="setLeadFilter('converted')">Cont creat</button>
+  <button class="filter-btn" data-lead-filter="archived" onclick="setLeadFilter('archived')">Arhivate</button>
+  <button class="filter-btn" data-lead-filter="all" onclick="setLeadFilter('all')">Toate</button>
+  <div class="search-wrap"><input id="clSearch" placeholder="Caută nume, email, telefon…" oninput="renderClients()"></div>
+</div>
+<div class="tbl-wrap"><table>
+  <thead><tr><th>Data</th><th>Nume</th><th>Contact</th><th>Locație · preferință</th><th>Status</th><th></th></tr></thead>
+  <tbody id="leadsBody"><tr><td colspan="6" class="empty-row">Se încarcă…</td></tr></tbody>
+</table></div>
+
+<div class="chart-lbl">Membri</div>
+<div class="tbl-wrap"><table>
+  <thead><tr><th>Nume</th><th>Contact</th><th>Abonament</th><th>Următoarea sesiune</th><th>Cod acces</th><th>Membru din</th></tr></thead>
+  <tbody id="membersBody"><tr><td colspan="6" class="empty-row">Se încarcă…</td></tr></tbody>
+</table></div>
+
+</div><!-- end clients-section -->
+
 </div><!-- end container -->
 
 <!-- Firebase Auth SDK -->
@@ -424,6 +468,9 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const fbAuth = firebase.auth();
+// Local testing only (http://localhost…?emu): sign in against the Firebase emulators.
+const USE_EMULATORS = location.hostname==='localhost' && new URLSearchParams(location.search).has('emu');
+if(USE_EMULATORS) fbAuth.useEmulator('http://127.0.0.1:9099');
 
 async function doLogin(){
   const email = document.getElementById('loginEmail').value.trim();
@@ -1564,11 +1611,144 @@ async function duplicateFromPrevMonth(){
 function switchTab(tab){
   document.getElementById('cashflow-section').style.display=tab==='cashflow'?'block':'none';
   document.getElementById('capacity-section').style.display=(tab==='cap1'||tab==='cap2')?'block':'none';
+  document.getElementById('clients-section').style.display=tab==='clients'?'block':'none';
+  document.getElementById('tabBtnClients').classList.toggle('active',tab==='clients');
+  if(tab==='clients') loadClients();
   document.getElementById('tabBtnCashflow').classList.toggle('active',tab==='cashflow');
   document.getElementById('tabBtnCap1').classList.toggle('active',tab==='cap1');
   document.getElementById('tabBtnCap2').classList.toggle('active',tab==='cap2');
   if(tab==='cap1'){activeCapGym=1;renderCapacity();}
   if(tab==='cap2'){activeCapGym=2;renderCapacity();}
+}
+
+// ================================================================
+//  CLIENȚI APLICAȚIE
+// ================================================================
+const APP_API = USE_EMULATORS ? 'http://localhost:5173/api' : 'https://gymgo-app-virid.vercel.app/api';
+const LOC_NAMES = { ivory7: 'Ivory 7', ivory12: 'Ivory 12' };
+const PREF_NAMES = { dimineata: 'Dimineața', pranz: 'Prânz', seara: 'Seara' };
+const LEAD_STATUS = {
+  new: ['Nou', 'badge-out'], contacted: ['Contactat', 'sc'], demo_scheduled: ['Demo programat', 's1'],
+  converted: ['Cont creat', 'badge-in'], archived: ['Arhivat', 'sc'],
+};
+let clLeads = [], clMembers = [], leadFilter = 'open';
+
+// Lead data is typed by the public in the app, so it is always escaped before display.
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const fmtDateTime = (iso) => new Date(iso).toLocaleString('ro-RO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Bucharest' });
+const fmtDate = (d) => new Date(d.length === 10 ? d + 'T12:00:00' : d).toLocaleDateString('ro-RO', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/Bucharest' });
+
+async function appApi(path, method = 'GET', body) {
+  const user = fbAuth.currentUser;
+  if (!user) throw new Error('Nu ești conectat.');
+  const res = await fetch(APP_API + path, {
+    method,
+    headers: { Authorization: 'Bearer ' + await user.getIdToken(), ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || ('Eroare ' + res.status));
+  return data;
+}
+
+function showClientsError(msg) {
+  const el = document.getElementById('clError');
+  el.textContent = msg || '';
+  el.style.display = msg ? 'flex' : 'none';
+}
+
+async function loadClients() {
+  showClientsError('');
+  try {
+    const [l, m] = await Promise.all([appApi('/admin/leads'), appApi('/admin/members')]);
+    clLeads = l.leads; clMembers = m.members;
+    renderClients();
+  } catch (e) {
+    showClientsError('Nu am putut încărca datele din aplicație: ' + e.message);
+  }
+}
+
+function setLeadFilter(f) {
+  leadFilter = f;
+  document.querySelectorAll('[data-lead-filter]').forEach((b) => b.classList.toggle('active', b.dataset.leadFilter === f));
+  renderClients();
+}
+
+function renderClients() {
+  const q = (document.getElementById('clSearch').value || '').trim().toLowerCase();
+  const match = (x) => !q || [x.name, x.email, x.phone].some((v) => (v || '').toLowerCase().includes(q));
+
+  document.getElementById('clNew').textContent = clLeads.filter((l) => l.status === 'new' || l.status === 'contacted').length;
+  document.getElementById('clDemo').textContent = clLeads.filter((l) => l.status === 'demo_scheduled').length;
+  document.getElementById('clMembers').textContent = clMembers.length;
+  document.getElementById('clSubs').textContent = clMembers.reduce((n, m) => n + m.subscriptions.filter((s) => s.status === 'active').length, 0);
+
+  const leads = clLeads.filter((l) => (
+    leadFilter === 'all' ? true
+      : leadFilter === 'open' ? ['new', 'contacted', 'demo_scheduled'].includes(l.status)
+      : l.status === leadFilter
+  ) && match(l));
+  const lb = document.getElementById('leadsBody');
+  lb.innerHTML = leads.length ? leads.map((l) => {
+    const [label, cls] = LEAD_STATUS[l.status] || [l.status, 'sc'];
+    const btn = (status, text) => `<button class="filter-btn" onclick="setLeadStatus('${l.id}','${status}')">${text}</button>`;
+    let actions = '';
+    if (l.status === 'converted') actions = `<button class="filter-btn" onclick="activateLead('${l.id}', true)">✉ Retrimite mail</button>`;
+    else if (l.status === 'archived') actions = btn('new', 'Redeschide');
+    else actions = (l.status === 'new' ? btn('contacted', 'Contactat') : '')
+      + (l.status !== 'demo_scheduled' ? btn('demo_scheduled', 'Demo programat') : '')
+      + `<button class="add-btn" style="padding:5px 12px;font-size:12px" onclick="activateLead('${l.id}')">✓ A făcut demo · creează cont</button>`
+      + btn('archived', 'Arhivează');
+    return `<tr>
+      <td style="white-space:nowrap">${esc(fmtDateTime(l.createdAt))}</td>
+      <td><b>${esc(l.name)}</b></td>
+      <td><a href="tel:${esc(l.phone)}">${esc(l.phone)}</a><br><span style="color:#888">${esc(l.email)}</span></td>
+      <td>${esc(LOC_NAMES[l.locationId] || '')} · ${esc(PREF_NAMES[l.timePref] || '')}</td>
+      <td><span class="sala-badge ${cls}">${label}</span></td>
+      <td><div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">${actions}</div></td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="6" class="empty-row">Nicio cerere.</td></tr>';
+
+  const members = clMembers.filter(match);
+  const mb = document.getElementById('membersBody');
+  mb.innerHTML = members.length ? members.map((m) => {
+    const subs = m.subscriptions.map((s) => {
+      const state = s.status === 'past_due' ? ' · <span style="color:#A32D2D">plată restantă</span>'
+        : s.cancelAtPeriodEnd ? ` · se oprește ${esc(fmtDate(s.periodEnd))}` : s.renewsOn ? ` · reînnoire ${esc(fmtDate(s.renewsOn))}` : ` · până ${esc(fmtDate(s.periodEnd))}`;
+      return `${esc(s.planName)}${s.mode === 'duo' ? ' Duo' : ''} · ${esc(LOC_NAMES[s.locationId])}${state}`;
+    }).join('<br>') || '<span style="color:#aaa">fără abonament</span>';
+    const next = m.upcoming[0];
+    return `<tr>
+      <td><b>${esc(m.name)}</b></td>
+      <td><a href="tel:${esc(m.phone)}">${esc(m.phone)}</a><br><span style="color:#888">${esc(m.email)}</span></td>
+      <td>${subs}</td>
+      <td>${next ? `${esc(fmtDateTime(next.start))} · ${esc(LOC_NAMES[next.locationId])}${m.upcoming.length > 1 ? ` <span style="color:#888">(+${m.upcoming.length - 1})</span>` : ''}` : '<span style="color:#aaa">—</span>'}</td>
+      <td style="font-variant-numeric:tabular-nums">${esc(m.accessCode)}</td>
+      <td style="white-space:nowrap">${esc(fmtDate(m.createdAt))}</td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="6" class="empty-row">Niciun membru încă.</td></tr>';
+}
+
+async function setLeadStatus(id, status) {
+  try { await appApi('/admin/leads/' + id, 'POST', { status }); await loadClients(); }
+  catch (e) { showClientsError(e.message); }
+}
+
+async function activateLead(id, resend = false) {
+  const lead = clLeads.find((l) => l.id === id);
+  if (!lead) return;
+  const msg = resend
+    ? `Retrimiți emailul de bun venit către ${lead.email}?`
+    : `Creezi contul pentru ${lead.name}?\n\nPrimește pe ${lead.email} emailul de bun venit și se poate conecta în aplicație.`;
+  if (!confirm(msg)) return;
+  try {
+    const r = await appApi('/admin/leads/' + id + '/activate', 'POST');
+    if (r.emailSent) alert(resend ? 'Emailul a fost retrimis.' : `✓ Cont creat. ${lead.name} a primit emailul de bun venit.`);
+    else alert(r.emailError);
+    await loadClients();
+  } catch (e) {
+    showClientsError(e.message);
+  }
 }
 
 // ================================================================
