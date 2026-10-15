@@ -480,8 +480,17 @@ const MONTH_NAMES={'01':'Ianuarie','02':'Februarie','03':'Martie','04':'Aprilie'
 // ================================================================
 //  FIREBASE HELPERS
 // ================================================================
+// Every request carries the logged-in user's ID token; the database rules reject anything else.
+async function rtdbFetch(path,opts){
+  const user=fbAuth.currentUser;
+  if(!user) throw new Error('not signed in');
+  const token=await user.getIdToken();
+  return fetch(RTDB+path+'?auth='+encodeURIComponent(token),opts);
+}
+// Stays false until the cloud data loaded successfully, so a failed load never overwrites cloud data.
+let dbWritable=false;
 async function dbLoad(){
-  const res=await fetch(RTDB+'/cashflow.json');
+  const res=await rtdbFetch('/cashflow.json');
   if(!res.ok) throw new Error('load failed');
   return await res.json();
 }
@@ -503,9 +512,10 @@ function showSaveStatus(state){
   }
 }
 async function dbSave(){
+  if(!dbWritable){showSaveStatus('error');throw new Error('cloud data not loaded; refusing to save');}
   showSaveStatus('saving');
   try{
-    const res=await fetch(RTDB+'/cashflow.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(rows.map(r=>({data:r.data,desc:r.desc,sala:r.sala,tip:r.tip,val:r.val,soldOverride:r.soldOverride??null,capId:r.capId??null,recurring:r.recurring??null})))});
+    const res=await rtdbFetch('/cashflow.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(rows.map(r=>({data:r.data,desc:r.desc,sala:r.sala,tip:r.tip,val:r.val,soldOverride:r.soldOverride??null,capId:r.capId??null,recurring:r.recurring??null})))});
     if(!res.ok) throw new Error('save failed '+res.status);
     showSaveStatus('ok');
   }catch(e){
@@ -516,15 +526,16 @@ async function dbSave(){
 }
 async function capDbLoad(gym){
   const path=gym===2?'/capacity2.json':'/capacity.json';
-  const res=await fetch(RTDB+path);
+  const res=await rtdbFetch(path);
   if(!res.ok) throw new Error('cap load failed');
   return await res.json();
 }
 async function capDbSave(){
   const path=activeCapGym===2?'/capacity2.json':'/capacity.json';
+  if(!dbWritable){showSaveStatus('error');throw new Error('cloud data not loaded; refusing to save');}
   showSaveStatus('saving');
   try{
-    const res=await fetch(RTDB+path,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(curCap())});
+    const res=await rtdbFetch(path,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(curCap())});
     if(!res.ok) throw new Error('capsave failed '+res.status);
     showSaveStatus('ok');
   }catch(e){
@@ -1660,11 +1671,17 @@ async function migrateRecurring(){
 async function init(){
   document.getElementById('tblBody').innerHTML='<tr><td colspan="9" class="empty-row" style="color:#888">Se încarcă datele din cloud…</td></tr>';
   try{
+    const load=async path=>{
+      const r=await rtdbFetch(path);
+      if(!r.ok) throw new Error(path+' → HTTP '+r.status);
+      return r.json();
+    };
     const [cfData, capData1, capData2]=await Promise.all([
-      fetch(RTDB+'/cashflow.json').then(r=>r.json()),
-      fetch(RTDB+'/capacity.json').then(r=>r.json()),
-      fetch(RTDB+'/capacity2.json').then(r=>r.json()).catch(()=>null)
+      load('/cashflow.json'),
+      load('/capacity.json'),
+      load('/capacity2.json')
     ]);
+    dbWritable=true;
     if(cfData&&cfData.length>0){
       rows=cfData.map(r=>({...r,sold:0}));
     } else {
@@ -1682,9 +1699,9 @@ async function init(){
     capNextId2=Math.max(...(capacityData2.length?capacityData2.map(m=>m.id):[400]),400)+1;
   }catch(e){
     console.error('Firebase error:',e);
-    const local=localStorage.getItem(STORAGE_KEY);
-    rows=local?JSON.parse(local):[...defaultRows];
-    capacityData=defaultCapacity.map(m=>({...m}));
+    appInitialized=false;
+    document.getElementById('tblBody').innerHTML='<tr><td colspan="9" class="empty-row" style="color:#A32D2D">Nu am putut încărca datele din cloud (acces refuzat sau fără internet). Nimic nu a fost modificat. Reîncarcă pagina sau verifică dacă contul tău are acces de staff.</td></tr>';
+    return;
   }
 
   document.getElementById('newData').value=todayStr;
