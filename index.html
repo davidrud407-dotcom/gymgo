@@ -171,6 +171,47 @@ tr.rollover-row:hover td{background:#F3EEF9!important}
 .login-btn{width:100%;background:#1a1a18;color:#fff;border:none;border-radius:8px;padding:10px;font-size:14px;font-weight:600;cursor:pointer;margin-top:.5rem;transition:opacity .15s}
 .login-btn:hover{opacity:.85}
 .login-err{font-size:12px;color:#E24B4A;margin-top:.75rem;text-align:center;min-height:18px}
+/* ---- BOOKINGS ---- */
+.bk-layout{display:grid;grid-template-columns:330px 1fr;gap:16px;align-items:start}
+@media(max-width:820px){.bk-layout{grid-template-columns:1fr}}
+.bk-cal{background:#fff;border:1px solid rgba(0,0,0,0.08);border-radius:12px;padding:1rem}
+.bk-cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:.7rem}
+.bk-cal-title{font-weight:600;font-size:15px}
+.bk-nav{background:#fff;border:1px solid rgba(0,0,0,0.12);border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:15px;color:#444}
+.bk-nav:hover{background:#f0eeea}
+.bk-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.bk-wd{font-size:10px;color:#999;text-align:center;text-transform:uppercase;letter-spacing:.04em;padding-bottom:4px}
+.bk-day{border:1px solid transparent;background:#faf9f6;border-radius:8px;min-height:50px;padding:4px 5px;cursor:pointer;text-align:left;font-size:12px;color:#1a1a18;display:flex;flex-direction:column;gap:2px}
+.bk-day:hover{border-color:rgba(0,0,0,0.15)}
+.bk-day.other{visibility:hidden}
+.bk-day.today{border-color:#378ADD}
+.bk-day.sel{background:#1a1a18;color:#fff}
+.bk-day .n{font-weight:600}
+.bk-dots{display:flex;gap:3px;flex-wrap:wrap}
+.bk-dot{font-size:10px;font-weight:600;border-radius:4px;padding:0 4px;line-height:15px}
+.bk-dot.l7{background:#E6F1FB;color:#185FA5}
+.bk-dot.l12{background:#FAEEDA;color:#854F0B}
+.bk-day.sel .bk-dot{background:rgba(255,255,255,.18);color:#fff}
+.bk-legend{display:flex;gap:10px;margin-top:.7rem;font-size:11px;color:#888;align-items:center}
+.bk-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:1000px){.bk-cols{grid-template-columns:1fr}}
+.bk-col{background:#fff;border:1px solid rgba(0,0,0,0.08);border-radius:12px;overflow:hidden}
+.bk-col-head{padding:.75rem 1rem;border-bottom:1px solid rgba(0,0,0,0.06);display:flex;justify-content:space-between;align-items:baseline}
+.bk-col-head b{font-size:14px}
+.bk-slot{display:flex;gap:12px;padding:.6rem 1rem;border-bottom:1px solid rgba(0,0,0,0.05);align-items:flex-start}
+.bk-slot:last-child{border-bottom:none}
+.bk-time{width:86px;flex:none;font-variant-numeric:tabular-nums;font-size:13px;font-weight:600}
+.bk-time small{display:block;font-weight:400;color:#999;font-size:11px}
+.bk-slot.free .bk-time{color:#bbb}
+.bk-slot.free .bk-info{color:#bbb;font-size:12px}
+.bk-slot.past{opacity:.55}
+.bk-info{flex:1;min-width:0;font-size:13px}
+.bk-info .who{font-weight:600}
+.bk-info .meta{color:#888;font-size:12px;margin-top:2px}
+.bk-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.bk-move{margin-top:8px;padding:10px;background:#faf9f6;border-radius:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.bk-move input,.bk-move select{font-size:12px;padding:5px 8px;border-radius:7px;border:1px solid rgba(0,0,0,0.15);background:#fff}
+.btn-danger{color:#A32D2D!important;border-color:#F0C4C4!important}
 </style>
 </head>
 <body>
@@ -203,6 +244,7 @@ tr.rollover-row:hover td{background:#F3EEF9!important}
   <button class="tab-btn" id="tabBtnCap1" onclick="switchTab('cap1')">📊 Capacity Gym 1</button>
   <button class="tab-btn" id="tabBtnCap2" onclick="switchTab('cap2')">📊 Capacity Gym 2</button>
   <button class="tab-btn" id="tabBtnClients" onclick="switchTab('clients')">👥 Clienți aplicație</button>
+  <button class="tab-btn" id="tabBtnBookings" onclick="switchTab('bookings')">📅 BOOKINGS</button>
 </div>
 
 <!-- ============================================================ -->
@@ -450,6 +492,51 @@ tr.rollover-row:hover td{background:#F3EEF9!important}
 </table></div>
 
 </div><!-- end clients-section -->
+
+<!-- ============================================================ -->
+<!--  BOOKINGS (reservations from the client app)                 -->
+<!-- ============================================================ -->
+<div id="bookings-section" style="display:none">
+
+<div class="hdr">
+  <div>
+    <div class="hdr-title">GYM&amp;GO — Bookings</div>
+    <div class="hdr-sub">Rezervările din aplicația de clienți · sesiuni de 80 min</div>
+  </div>
+  <div class="filters" style="margin:0">
+    <button class="filter-btn active" data-bk-loc="all" onclick="setBkLocation('all')">Ambele săli</button>
+    <button class="filter-btn" data-bk-loc="ivory7" onclick="setBkLocation('ivory7')">Ivory 7</button>
+    <button class="filter-btn" data-bk-loc="ivory12" onclick="setBkLocation('ivory12')">Ivory 12</button>
+    <label style="font-size:12px;color:#666;display:flex;gap:5px;align-items:center;margin-left:6px"><input type="checkbox" id="bkShowFree" checked onchange="renderBkDay()">intervale libere</label>
+    <button class="filter-btn" onclick="loadBookings()">↻ Reîncarcă</button>
+  </div>
+</div>
+
+<div id="bkError" class="warn-bar"></div>
+
+<div class="bk-layout">
+  <div>
+    <div class="bk-cal">
+      <div class="bk-cal-head">
+        <button class="bk-nav" onclick="bkShiftMonth(-1)" aria-label="Luna anterioară">‹</button>
+        <div class="bk-cal-title" id="bkMonthTitle">—</div>
+        <button class="bk-nav" onclick="bkShiftMonth(1)" aria-label="Luna următoare">›</button>
+      </div>
+      <div class="bk-grid" id="bkGrid"></div>
+      <div class="bk-legend"><span class="bk-dot l7">7</span>Ivory 7 <span class="bk-dot l12">12</span>Ivory 12 <span style="margin-left:auto;cursor:pointer;text-decoration:underline" onclick="bkGoToday()">Azi</span></div>
+    </div>
+    <div class="cards" style="grid-template-columns:repeat(2,1fr);margin-top:12px">
+      <div class="card"><div class="card-lbl">Rezervări în zi</div><div class="card-val" id="bkDayCount">—</div></div>
+      <div class="card"><div class="card-lbl">Rezervări în lună</div><div class="card-val blue" id="bkMonthCount">—</div></div>
+    </div>
+  </div>
+  <div>
+    <div class="hdr-title" style="font-size:18px;margin-bottom:.8rem" id="bkDayTitle">—</div>
+    <div class="bk-cols" id="bkCols"><div class="empty-row">Se încarcă…</div></div>
+  </div>
+</div>
+
+</div><!-- end bookings-section -->
 
 </div><!-- end container -->
 
@@ -1612,6 +1699,9 @@ function switchTab(tab){
   document.getElementById('cashflow-section').style.display=tab==='cashflow'?'block':'none';
   document.getElementById('capacity-section').style.display=(tab==='cap1'||tab==='cap2')?'block':'none';
   document.getElementById('clients-section').style.display=tab==='clients'?'block':'none';
+  document.getElementById('bookings-section').style.display=tab==='bookings'?'block':'none';
+  document.getElementById('tabBtnBookings').classList.toggle('active',tab==='bookings');
+  if(tab==='bookings') loadBookings();
   document.getElementById('tabBtnClients').classList.toggle('active',tab==='clients');
   if(tab==='clients') loadClients();
   document.getElementById('tabBtnCashflow').classList.toggle('active',tab==='cashflow');
@@ -1749,6 +1839,187 @@ async function activateLead(id, resend = false) {
   } catch (e) {
     showClientsError(e.message);
   }
+}
+
+// ================================================================
+//  BOOKINGS
+// ================================================================
+const RO_MONTHS = ['Ianuarie','Februarie','Martie','Aprilie','Mai','Iunie','Iulie','August','Septembrie','Octombrie','Noiembrie','Decembrie'];
+const RO_DAYS = ['Duminică','Luni','Marți','Miercuri','Joi','Vineri','Sâmbătă'];
+// Today's date in Bucharest, as YYYY-MM-DD.
+const bkToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Bucharest' }).format(new Date());
+let bkMonth = bkToday().slice(0, 7), bkDay = bkToday(), bkLoc = 'all', bkCounts = {}, bkData = null, bkMoving = null;
+
+const ymd = (y, m, d) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+const dayTitle = (d) => { const [y, m, dd] = d.split('-').map(Number); const w = new Date(Date.UTC(y, m - 1, dd)).getUTCDay(); return `${RO_DAYS[w]}, ${dd} ${RO_MONTHS[m - 1].toLowerCase()} ${y}`; };
+
+async function loadBookings() {
+  await Promise.all([loadBkMonth(), loadBkDay()]);
+}
+
+async function loadBkMonth() {
+  try {
+    bkCounts = (await appApi('/admin/bookings-month?month=' + bkMonth)).counts;
+    renderBkCalendar();
+  } catch (e) { showBkError(e.message); }
+}
+
+async function loadBkDay() {
+  showBkError('');
+  document.getElementById('bkDayTitle').textContent = dayTitle(bkDay);
+  try {
+    bkData = await appApi('/admin/bookings?day=' + bkDay);
+    renderBkDay();
+  } catch (e) {
+    document.getElementById('bkCols').innerHTML = '';
+    showBkError('Nu am putut încărca rezervările: ' + e.message);
+  }
+}
+
+function showBkError(msg) {
+  const el = document.getElementById('bkError');
+  el.textContent = msg || '';
+  el.style.display = msg ? 'flex' : 'none';
+}
+
+function bkShiftMonth(delta) {
+  const [y, m] = bkMonth.split('-').map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + delta, 1));
+  bkMonth = ymd(d.getUTCFullYear(), d.getUTCMonth() + 1, 1).slice(0, 7);
+  loadBkMonth();
+}
+
+function bkGoToday() {
+  bkDay = bkToday(); bkMonth = bkDay.slice(0, 7);
+  loadBookings();
+}
+
+function bkSelectDay(d) {
+  bkDay = d; bkMoving = null;
+  renderBkCalendar();
+  loadBkDay();
+}
+
+function setBkLocation(loc) {
+  bkLoc = loc;
+  document.querySelectorAll('[data-bk-loc]').forEach((b) => b.classList.toggle('active', b.dataset.bkLoc === loc));
+  renderBkCalendar();
+  renderBkDay();
+}
+
+function renderBkCalendar() {
+  const [y, m] = bkMonth.split('-').map(Number);
+  document.getElementById('bkMonthTitle').textContent = `${RO_MONTHS[m - 1]} ${y}`;
+  const first = new Date(Date.UTC(y, m - 1, 1)).getUTCDay(); // 0 = Sunday
+  const lead = (first + 6) % 7; // calendar starts on Monday
+  const days = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const today = bkToday();
+  let html = ['Lu', 'Ma', 'Mi', 'Jo', 'Vi', 'Sâ', 'Du'].map((d) => `<div class="bk-wd">${d}</div>`).join('');
+  for (let i = 0; i < lead; i++) html += '<div class="bk-day other"></div>';
+  let monthTotal = 0;
+  for (let d = 1; d <= days; d++) {
+    const key = ymd(y, m, d);
+    const c = bkCounts[key] || {};
+    const n7 = bkLoc === 'ivory12' ? 0 : c.ivory7 || 0;
+    const n12 = bkLoc === 'ivory7' ? 0 : c.ivory12 || 0;
+    monthTotal += n7 + n12;
+    html += `<button class="bk-day${key === today ? ' today' : ''}${key === bkDay ? ' sel' : ''}" onclick="bkSelectDay('${key}')">
+      <span class="n">${d}</span>
+      <span class="bk-dots">${n7 ? `<span class="bk-dot l7">${n7}</span>` : ''}${n12 ? `<span class="bk-dot l12">${n12}</span>` : ''}</span>
+    </button>`;
+  }
+  document.getElementById('bkGrid').innerHTML = html;
+  document.getElementById('bkMonthCount').textContent = monthTotal;
+}
+
+function renderBkDay() {
+  if (!bkData) return;
+  const showFree = document.getElementById('bkShowFree').checked;
+  const locs = bkData.locations.filter((l) => bkLoc === 'all' || l.locationId === bkLoc);
+  let dayTotal = 0;
+  document.getElementById('bkCols').style.gridTemplateColumns = locs.length === 1 ? '1fr' : '';
+  document.getElementById('bkCols').innerHTML = locs.map((l) => {
+    const booked = l.slots.filter((s) => s.booking).length;
+    dayTotal += booked;
+    const rows = l.slots.filter((s) => s.booking || showFree).map((s) => {
+      const time = `<div class="bk-time">${s.time}<small>–${s.endTime}${s.date !== bkDay ? ' · noaptea' : ''}</small></div>`;
+      if (!s.booking) return `<div class="bk-slot free${s.past ? ' past' : ''}">${time}<div class="bk-info">liber</div></div>`;
+      const b = s.booking;
+      const actions = s.past ? '' : `<div class="bk-actions">
+        <button class="filter-btn" onclick="bkStartMove('${s.id}')">↔ Mută</button>
+        <button class="filter-btn btn-danger" onclick="bkCancel('${s.id}')">✕ Șterge</button>
+      </div>`;
+      const move = bkMoving && bkMoving.id === s.id ? `<div class="bk-move">
+        <span style="font-size:12px;color:#666">Mută pe</span>
+        <input type="date" value="${bkMoving.day}" min="${bkToday()}" onchange="bkMoveDay(this.value)">
+        <select id="bkMoveSlot">${bkMoving.options === null ? '<option>Se încarcă…</option>'
+          : bkMoving.options.length ? bkMoving.options.map((o) => `<option value="${o.time}">${o.time} – ${o.endTime}${o.date !== bkMoving.day ? ' (noaptea)' : ''}</option>`).join('')
+          : '<option value="">Niciun interval liber</option>'}</select>
+        <button class="add-btn" style="padding:5px 12px;font-size:12px" onclick="bkConfirmMove()">Confirmă</button>
+        <button class="filter-btn" onclick="bkMoving=null;renderBkDay()">Renunță</button>
+      </div>` : '';
+      return `<div class="bk-slot${s.past ? ' past' : ''}">${time}<div class="bk-info">
+        <div class="who">${esc(b.name)}</div>
+        <div class="meta"><a href="tel:${esc(b.phone)}">${esc(b.phone)}</a> · ${esc(b.plan)} · cod ${esc(b.accessCode)}</div>
+        ${actions}${move}
+      </div></div>`;
+    }).join('') || '<div class="bk-slot free"><div class="bk-info">Nicio rezervare.</div></div>';
+    return `<div class="bk-col"><div class="bk-col-head"><b>${esc(LOC_NAMES[l.locationId])}</b><span style="font-size:12px;color:#888">${booked} ${booked === 1 ? 'rezervare' : 'rezervări'}</span></div>${rows}</div>`;
+  }).join('');
+  document.getElementById('bkDayCount').textContent = dayTotal;
+}
+
+function bkFindSlot(id) {
+  for (const l of bkData.locations) for (const s of l.slots) if (s.id === id) return { ...s, locationId: l.locationId };
+  return null;
+}
+
+async function bkStartMove(id) {
+  bkMoving = { id, locationId: bkFindSlot(id).locationId, day: bkDay, options: null };
+  renderBkDay();
+  await bkLoadMoveOptions();
+}
+
+async function bkMoveDay(day) {
+  if (!bkMoving) return;
+  bkMoving.day = day; bkMoving.options = null;
+  renderBkDay();
+  await bkLoadMoveOptions();
+}
+
+async function bkLoadMoveOptions() {
+  const m = bkMoving;
+  try {
+    const r = await appApi('/admin/bookings?day=' + m.day);
+    const loc = r.locations.find((l) => l.locationId === m.locationId);
+    if (bkMoving !== m) return;
+    m.options = loc.slots.filter((s) => !s.booking && !s.past);
+  } catch (e) {
+    m.options = [];
+    showBkError(e.message);
+  }
+  renderBkDay();
+}
+
+async function bkConfirmMove() {
+  const time = document.getElementById('bkMoveSlot').value;
+  if (!time) return;
+  const slot = bkFindSlot(bkMoving.id);
+  if (!confirm(`Muți rezervarea lui ${slot.booking.name} pe ${dayTitle(bkMoving.day)}, ${time}?\n\nClientul primește un email cu noua oră.`)) return;
+  try {
+    await appApi('/admin/bookings/' + bkMoving.id + '/move', 'POST', { day: bkMoving.day, time });
+    bkMoving = null;
+    await loadBookings();
+  } catch (e) { showBkError(e.message); }
+}
+
+async function bkCancel(id) {
+  const s = bkFindSlot(id);
+  if (!confirm(`Ștergi rezervarea lui ${s.booking.name} (${LOC_NAMES[s.locationId]}, ${dayTitle(bkDay)}, ${s.time})?\n\nSesiunea i se returnează în abonament și primește un email.`)) return;
+  try {
+    await appApi('/admin/bookings/' + id + '/cancel', 'POST');
+    await loadBookings();
+  } catch (e) { showBkError(e.message); }
 }
 
 // ================================================================
