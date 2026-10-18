@@ -489,6 +489,9 @@ tr.rollover-row:hover td{background:#F3EEF9!important}
 
 <div id="clError" class="warn-bar"></div>
 
+<div class="chart-lbl">Capacitate (alertă pe email peste 80%)</div>
+<div class="cards" id="clCapacity" style="grid-template-columns:repeat(2,minmax(0,1fr))"></div>
+
 <div class="chart-lbl">Cereri de demo</div>
 <div class="filters">
   <button class="filter-btn active" data-lead-filter="open" onclick="setLeadFilter('open')">Deschise</button>
@@ -1507,7 +1510,7 @@ function renderCapacity(){
     const tr=document.createElement('tr');
     if(isRollover) tr.className='rollover-row';
     tr.innerHTML=`
-      <td><strong>${mb.name}</strong>${isRollover?'<span class="rollover-badge">rollover</span>':''}</td>
+      <td id="cap-name-${mb.id}" onclick="editCapName(${mb.id})" style="cursor:pointer" title="Click pentru a edita numele"><strong>${mb.name}</strong>${isRollover?'<span class="rollover-badge">rollover</span>':''} <i class="ti ti-pencil" style="font-size:10px;color:#ddd"></i></td>
       <td style="color:#888;font-size:12px;white-space:nowrap">${dStr}</td>
       <td class="num" id="cap-ses-${mb.id}" onclick="editCapField(${mb.id},'sessions')" style="cursor:pointer" title="Click pentru a edita"><span class="ses-badge">${mb.sessions>0?mb.sessions+' ses':'—'}</span> <i class="ti ti-pencil" style="font-size:10px;color:#ddd"></i></td>
       <td class="num" style="font-weight:600">${sInMRounded}</td>
@@ -1611,6 +1614,42 @@ async function saveCapField(id, field){
   if(!mb) return;
   mb[field]=val;
   await capDbSave();
+  renderCapacity();
+}
+
+// Renames a client. The same client has one entry per month, so by default every entry with the
+// same name in this gym is renamed, together with the Cashflow rows linked to them.
+function editCapName(id){
+  const mb=curCap().find(m=>m.id===id);
+  const cell=document.getElementById('cap-name-'+id);
+  if(!mb||!cell||cell.querySelector('input')) return;
+  const others=curCap().filter(m=>m.name===mb.name).length;
+  cell.innerHTML=`<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+    <input id="cap-name-input-${id}" type="text" style="font-size:12px;padding:3px 6px;border:1.5px solid #378ADD;border-radius:5px;width:150px;outline:none">
+    <button class="save-btn" onclick="event.stopPropagation();saveCapName(${id})">✓</button>
+    <button class="cancel-btn" onclick="event.stopPropagation();renderCapacity()">✕</button>
+    ${others>1?`<label style="font-size:11px;color:#666;display:flex;gap:4px;align-items:center;width:100%" onclick="event.stopPropagation()"><input type="checkbox" id="cap-name-all-${id}" checked>în toate lunile (${others} abonamente)</label>`:''}
+  </div>`;
+  const inp=document.getElementById('cap-name-input-'+id);
+  inp.value=mb.name;
+  inp.focus();inp.select();
+  inp.addEventListener('click',e=>e.stopPropagation());
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter')saveCapName(id);if(e.key==='Escape')renderCapacity();});
+}
+
+async function saveCapName(id){
+  const mb=curCap().find(m=>m.id===id);
+  const name=(document.getElementById('cap-name-input-'+id)?.value||'').trim().toUpperCase();
+  if(!mb||!name||name===mb.name) return renderCapacity();
+  const all=document.getElementById('cap-name-all-'+id)?.checked;
+  const oldName=mb.name;
+  const targets=all?curCap().filter(m=>m.name===oldName):[mb];
+  const ids=new Set(targets.map(m=>m.id));
+  targets.forEach(m=>{m.name=name;});
+  let flowChanged=false;
+  rows.forEach(r=>{if(r.capId!=null&&ids.has(r.capId)&&r.desc===oldName){r.desc=name;flowChanged=true;}});
+  await capDbSave();
+  if(flowChanged){await dbSave();renderTable();}
   renderCapacity();
 }
 
@@ -1771,12 +1810,24 @@ function showClientsError(msg) {
 async function loadClients() {
   showClientsError('');
   try {
-    const [l, m] = await Promise.all([appApi('/admin/leads'), appApi('/admin/members')]);
+    const [l, m, c] = await Promise.all([appApi('/admin/leads'), appApi('/admin/members'), appApi('/admin/capacity')]);
     clLeads = l.leads; clMembers = m.members;
     renderClients();
+    renderAppCapacity(c);
   } catch (e) {
     showClientsError('Nu am putut încărca datele din aplicație: ' + e.message);
   }
+}
+
+function renderAppCapacity(c) {
+  const col = (v) => (v >= c.threshold ? 'red' : v >= 60 ? 'orange' : 'green');
+  document.getElementById('clCapacity').innerHTML = c.gyms.map((g) => `<div class="card">
+    <div class="card-lbl">${esc(g.name)} · ${g.members} abonamente</div>
+    <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:4px">
+      <div><div class="card-val ${col(g.soldPct)}">${g.soldPct}%</div><div style="font-size:11px;color:#888">vândut (${g.soldSessions}/${g.monthSlots} sesiuni/lună)</div></div>
+      <div><div class="card-val ${col(g.bookedPct)}">${g.bookedPct}%</div><div style="font-size:11px;color:#888">rezervat, următoarele ${g.windowDays} zile</div></div>
+      <div><div class="card-val ${col(g.eveningPct)}">${g.eveningPct}%</div><div style="font-size:11px;color:#888">seri 18:00–22:30</div></div>
+    </div></div>`).join('');
 }
 
 function setLeadFilter(f) {
