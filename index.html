@@ -434,6 +434,7 @@ tr.rollover-row:hover td{background:#F3EEF9!important}
   <th class="num">Sesiuni luna aceasta</th>
   <th class="num">Rollover →</th>
   <th class="num">Preț</th>
+  <th>Stripe</th>
   <th style="width:40px"></th>
 </tr>
 </thead>
@@ -1461,6 +1462,7 @@ function updateDupLabel(){
 }
 
 function renderCapacity(){
+  if(stLoaded&&!stError) stComputeMatches(); // names may have just been added or renamed
   const [y,mo]=capMonth.split('-').map(Number);
   const days=daysInMonth(capMonth);
   const mStart=new Date(y,mo-1,1);
@@ -1515,13 +1517,14 @@ function renderCapacity(){
       <td class="num" id="cap-ses-${mb.id}" onclick="editCapField(${mb.id},'sessions')" style="cursor:pointer" title="Click pentru a edita"><span class="ses-badge">${mb.sessions>0?mb.sessions+' ses':'—'}</span> <i class="ti ti-pencil" style="font-size:10px;color:#ddd"></i></td>
       <td class="num" style="font-weight:600">${sInMRounded}</td>
       <td class="num" style="color:${rollover>0?'#7B5EA7':'#bbb'}">${rollover>0?rollover:'—'}</td>
-      <td class="num" id="cap-price-${mb.id}" onclick="editCapField(${mb.id},'price')" style="cursor:pointer" title="Click pentru a edita">${mb.price>0?mb.price.toLocaleString('ro-RO')+' RON':'<span style="color:#bbb">gratuit</span>'} <i class="ti ti-pencil" style="font-size:10px;color:#ddd"></i></td>
+      <td class="num" id="cap-price-${mb.id}" onclick="editCapField(${mb.id},'price')" style="cursor:pointer;white-space:nowrap" title="Click pentru a edita">${mb.price>0?mb.price.toLocaleString('ro-RO')+' RON':'<span style="color:#bbb">gratuit</span>'} <i class="ti ti-pencil" style="font-size:10px;color:#ddd"></i></td>
+      <td>${capStripeCell(mb)}</td>
       <td><button class="del-btn" onclick="deleteMember(${mb.id})" title="Șterge abonamentul">🗑</button></td>
     `;
     tbody.appendChild(tr);
   });
 
-  if(!sorted.length) tbody.innerHTML='<tr><td colspan="7" class="empty-row">Niciun abonament activ în această lună.</td></tr>';
+  if(!sorted.length) tbody.innerHTML='<tr><td colspan="8" class="empty-row">Niciun abonament activ în această lună.</td></tr>';
 
   // Update title + sub-header
   document.getElementById('capGymTitle').textContent='GYM&GO — Capacity Gym '+activeCapGym;
@@ -1767,6 +1770,7 @@ function switchTab(tab){
   document.getElementById('tabBtnCashflow').classList.toggle('active',tab==='cashflow');
   document.getElementById('tabBtnCap1').classList.toggle('active',tab==='cap1');
   document.getElementById('tabBtnCap2').classList.toggle('active',tab==='cap2');
+  if((tab==='cap1'||tab==='cap2')&&!stLoaded) loadStripe();
   if(tab==='cap1'){activeCapGym=1;renderCapacity();}
   if(tab==='cap2'){activeCapGym=2;renderCapacity();}
 }
@@ -2071,6 +2075,100 @@ async function mpCancelBooking(id) {
     mpData = await appApi('/admin/members/' + mpId);
     renderMember();
   } catch (e) { alert(e.message); }
+}
+
+// ================================================================
+//  STRIPE column in Capacity (live, read-only)
+// ================================================================
+// /api/stripe (this Vercel project) reads the subscriptions from Stripe with a read-only key.
+// A Capacity client is matched to a Stripe customer by name (small typos such as "FALVIA" are
+// accepted) and, for a single first name, by the price or start day too. If a client is not found,
+// rename them in Capacity the way they appear in Stripe.
+let stSubs = [], stLoaded = false, stError = '', stMatches = {};
+
+const stDay = (iso) => (iso ? new Date(iso).toLocaleDateString('sv-SE', { timeZone: 'Europe/Bucharest' }) : null);
+const stFmt = (day) => (day ? new Date(day + 'T12:00:00').toLocaleDateString('ro-RO', { day: 'numeric', month: 'short' }) : '');
+const stKey = (gym, name) => gym + '|' + String(name || '').trim().toUpperCase();
+const stTokens = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase()
+  .replace(/[^A-Z]+/g, ' ').split(' ').filter((t) => t.length >= 2);
+
+// Edit distance where two swapped neighbouring letters count as one typo.
+function stTypos(a, b) {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) {
+    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+  }
+  return d[a.length][b.length];
+}
+
+function stScore(c, s) {
+  const ct = stTokens(c.name), st = stTokens(s.name);
+  let hit = 0;
+  for (const t of ct) if (st.includes(t) || (t.length >= 4 && st.some((u) => u.length >= 4 && stTypos(t, u) <= 1))) hit++;
+  if (!hit) return 0;
+  const priceOk = c.price > 0 && [s.amount, s.listAmount].some((a) => a != null && Math.abs(a - c.price) <= 5);
+  const sd = Number((stDay(s.periodStart) || '').slice(8, 10)), cd = Number(c.startDate.slice(8, 10));
+  const dayOk = !!sd && Math.min(Math.abs(sd - cd), 31 - Math.abs(sd - cd)) <= 1;
+  const sure = (hit >= 2 && hit === ct.length) || priceOk || (hit === ct.length && dayOk);
+  return sure ? hit * 3 + (priceOk ? 2 : 0) + (dayOk ? 1 : 0) + (c.recent ? 1 : 0) : 0;
+}
+
+// One Stripe subscription per client name and gym; the best-scoring pairs win.
+function stComputeMatches() {
+  const latest = new Map();
+  for (const gym of [1, 2]) for (const mb of (gym === 1 ? capacityData1 : capacityData2) || []) {
+    const key = stKey(gym, mb.name);
+    if (!latest.has(key) || latest.get(key).startDate < mb.startDate) latest.set(key, { ...mb, gym, key });
+  }
+  const recentFrom = new Date(Date.now() - 45 * 86400000).toISOString().slice(0, 10);
+  const pairs = [];
+  for (const c of latest.values()) {
+    c.recent = c.startDate >= recentFrom;
+    for (const s of stSubs) { const score = stScore(c, s); if (score) pairs.push({ c, s, score }); }
+  }
+  // Prefer live subscriptions over old canceled ones for the same person.
+  pairs.sort((a, b) => b.score - a.score || (a.s.status === 'canceled') - (b.s.status === 'canceled'));
+  const usedSubs = new Set();
+  stMatches = {};
+  for (const p of pairs) {
+    if (stMatches[p.c.key] || usedSubs.has(p.s.id)) continue;
+    stMatches[p.c.key] = p.s;
+    usedSubs.add(p.s.id);
+  }
+}
+
+async function loadStripe() {
+  try {
+    const user = fbAuth.currentUser;
+    if (!user) return;
+    const res = await fetch('/api/stripe', { headers: { Authorization: 'Bearer ' + await user.getIdToken() } });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || ('eroare ' + res.status));
+    stSubs = data.subs; stError = '';
+    stComputeMatches();
+  } catch (e) {
+    stError = e.message;
+  }
+  stLoaded = true;
+  if (document.getElementById('capacity-section').style.display === 'block') renderCapacity();
+}
+
+function capStripeCell(mb) {
+  const pill = (text, bg, color) => `<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:600;white-space:nowrap;background:${bg};color:${color}">${text}</span>`;
+  const sub = (text) => `<div style="font-size:11px;color:#888;margin-top:2px;white-space:nowrap">${text}</div>`;
+  if (!stLoaded) return '<span style="color:#ccc">…</span>';
+  if (stError) return `<span style="color:#bbb" title="${stError.replace(/"/g, '&quot;')}">Stripe indisponibil</span>`;
+  const s = stMatches[stKey(activeCapGym, mb.name)];
+  if (!s || s.status === 'incomplete_expired') return pill('Subscripție inexistentă', '#F1EFE8', '#5F5E5A');
+  const m = s.month || {};
+  const next = stFmt(stDay(s.periodEnd));
+  if (s.status === 'canceled') return pill('Subscripție anulată', '#F1EFE8', '#5F5E5A') + (s.endedAt ? sub('din ' + stFmt(stDay(s.endedAt))) : '');
+  if (m.state === 'failed') return pill('Plată eșuată', '#FCEBEB', '#A32D2D') + sub(m.retry ? 'Stripe reîncearcă pe ' + stFmt(m.retry) : 'de încasat ' + (m.amount ?? s.amount) + ' RON');
+  const paid = m.state === 'paid' ? 'Plătit pe ' + stFmt(m.date) + ' · ' : '';
+  if (s.cancelAtPeriodEnd) return pill('Activă, se oprește', '#FAEEDA', '#854F0B') + sub(paid + 'se oprește pe ' + stFmt(stDay(s.cancelAt || s.periodEnd)));
+  return pill('Subscripție activă', '#EAF3DE', '#3B6D11') + sub(paid + 'Următoarea plată: ' + next + ' · ' + s.amount + ' RON');
 }
 
 // ================================================================
